@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<title>Davomat — Mashrapov Q.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234f46e5'/%3E%3Cpath d='M18 33l9 9 19-20' stroke='white' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f4f5fb; --card:#ffffff; --ink:#151827; --muted:#6b7084; --line:#e6e8f0;
+  --pri:#4f46e5; --pri2:#7c3aed; --pri-soft:#eef0ff;
+  --ok:#16a34a; --ok-soft:#e3f7e9; --no:#dc2626; --no-soft:#fde2e1;
+  --sab:#2563eb; --sab-soft:#e0ecff; --late:#d97706; --late-soft:#fff1d6;
+  --daf:#9333ea; --daf-soft:#f3e8ff;
+  --shadow:0 1px 2px rgba(20,24,60,.05),0 8px 24px rgba(20,24,60,.06);
+  --r:18px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1020; --card:#171a2e; --ink:#eef0fb; --muted:#9a9fb8; --line:#262a44;
+    --pri:#818cf8; --pri2:#a78bfa; --pri-soft:#1f2347;
+    --ok:#4ade80; --ok-soft:#14301f; --no:#f87171; --no-soft:#3a1719;
+    --sab:#60a5fa; --sab-soft:#15264a; --late:#fbbf24; --late-soft:#3a2a0c;
+    --daf:#c084fc; --daf-soft:#2c1a40; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.hide{display:none!important}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px}
+
+/* ---------- login ---------- */
+#login{min-height:100vh;display:grid;place-items:center;padding:24px 16px;
+  background:radial-gradient(1200px 600px at 10% -10%,rgba(124,58,237,.25),transparent 60%),radial-gradient(900px 500px at 110% 110%,rgba(79,70,229,.25),transparent 60%),var(--bg)}
+.lcard{width:100%;max-width:380px;background:var(--card);border-radius:24px;padding:32px 26px;box-shadow:var(--shadow)}
+.logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--pri),var(--pri2));display:grid;place-items:center;margin-bottom:18px;box-shadow:0 10px 24px rgba(79,70,229,.35)}
+.lcard h1{margin:0 0 4px;font-size:24px;font-weight:800}
+.lcard p{margin:0 0 22px;color:var(--muted)}
+.fld{display:block;margin-bottom:14px}
+.fld span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.fld input,.fld select{width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);outline:none;transition:.15s}
+.fld input:focus{border-color:var(--pri)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 18px;border-radius:12px;font-weight:700;transition:.15s}
+.btn-pri{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff;box-shadow:0 8px 20px rgba(79,70,229,.3)}
+.btn-pri:active{transform:scale(.98)}
+.btn-ghost{background:var(--pri-soft);color:var(--pri)}
+.btn-block{width:100%}
+.err{color:var(--no);font-size:14px;min-height:20px;margin-top:10px}
+.small{font-size:13px;color:var(--muted)}
+
+/* ---------- top ---------- */
+header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.topin{display:flex;align-items:center;gap:12px;padding:12px 16px;max-width:860px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px}
+.brand .logo{width:34px;height:34px;border-radius:10px;margin:0;box-shadow:none}
+.sp{flex:1}
+.iconbtn{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--card);box-shadow:var(--shadow)}
+.datebar{display:flex;align-items:center;gap:8px;padding:0 16px 12px;max-width:860px;margin:0 auto}
+.datebox{flex:1;font-size:14px;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--card);border-radius:14px;padding:9px 12px;box-shadow:var(--shadow);font-weight:700;position:relative}
+.datebox input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.badge{white-space:nowrap;display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.b-toq{background:var(--late-soft);color:var(--late)}
+.b-juft{background:var(--sab-soft);color:var(--sab)}
+
+main{padding:16px 0 110px}
+h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;font-weight:700}
+
+/* ---------- lesson cards ---------- */
+.lesson{display:flex;align-items:center;gap:14px;background:var(--card);border-radius:var(--r);padding:14px;box-shadow:var(--shadow);margin-bottom:10px;width:100%;text-align:left;transition:.15s}
+.lesson:active{transform:scale(.99)}
+.para{width:54px;height:54px;border-radius:14px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:800;line-height:1.05;text-align:center;font-size:18px;flex-shrink:0}
+.para small{display:block;font-size:10px;font-weight:700;opacity:.8}
+.lesson .t{font-weight:800;font-size:17px}
+.lesson .s{color:var(--muted);font-size:13px;margin-top:2px}
+.st{margin-left:auto;flex-shrink:0}
+.pill{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok)}
+.p-wait{background:var(--late-soft);color:var(--late)}
+.empty{background:var(--card);border-radius:var(--r);padding:28px 20px;text-align:center;color:var(--muted);box-shadow:var(--shadow)}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.gcard{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:var(--shadow);text-align:left;transition:.15s}
+.gcard:active{transform:scale(.98)}
+.gcard .id{font-weight:800;font-size:20px}
+.gcard .nm{color:var(--muted);font-size:12px;margin-top:2px;min-height:30px;line-height:1.3}
+.bar{height:6px;border-radius:9px;background:var(--line);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ok),#22c55e)}
+.kv{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
+.kv b{color:var(--ink)}
+
+/* ---------- attendance ---------- */
+#att{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding-bottom:140px}
+.atthead{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.atthead .topin{padding-bottom:8px}
+.atttitle{font-weight:800;font-size:18px}
+.attsub{font-size:12px;color:var(--muted)}
+.tools{display:flex;gap:8px;padding:0 16px 12px;max-width:860px;margin:0 auto;flex-wrap:wrap}
+.tools .btn{padding:9px 12px;font-size:13px}
+.search{flex:1;min-width:140px;padding:9px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);outline:none}
+.stu{background:var(--card);border-radius:16px;padding:12px;box-shadow:var(--shadow);margin-bottom:8px;border-left:5px solid transparent;transition:border-color .15s}
+.stu.s-plus{border-left-color:var(--ok)} .stu.s-minus{border-left-color:var(--no)} .stu.s-s{border-left-color:var(--sab)} .stu.s-k{border-left-color:var(--late)}
+.stu .row1{display:flex;align-items:center;gap:10px}
+.num{width:26px;height:26px;border-radius:8px;background:var(--bg);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--muted);flex-shrink:0}
+.nm{font-weight:700;line-height:1.25}
+.nm small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.row2{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:3px;gap:3px}
+.seg button{min-width:42px;height:38px;border-radius:9px;font-weight:800;font-size:16px;color:var(--muted)}
+.seg button.on[data-s="+"]{background:var(--ok);color:#fff}
+.seg button.on[data-s="-"]{background:var(--no);color:#fff}
+.seg button.on[data-s="s"]{background:var(--sab);color:#fff}
+.seg button.on[data-s="k"]{background:var(--late);color:#fff}
+.grades{display:flex;gap:4px}
+.grades button{width:38px;height:38px;border-radius:10px;background:var(--bg);font-weight:800;color:var(--muted)}
+.grades button.on{background:var(--pri);color:#fff}
+.dbtn{height:38px;padding:0 12px;border-radius:10px;background:var(--bg);font-weight:700;font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.dbtn.on{background:var(--daf-soft);color:var(--daf);box-shadow:inset 0 0 0 1.5px var(--daf)}
+.dbtn:disabled{opacity:.35}
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.footin{max-width:860px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.cnt{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.cnt span{font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px}
+.foot .btn{padding:13px 22px}
+
+/* ---------- tabs ---------- */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabsin{max-width:860px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tab{padding:9px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--muted)}
+.tab svg{width:22px;height:22px}
+.tab.on{color:var(--pri)}
+
+/* ---------- report ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border-radius:14px;padding:12px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:20px;font-weight:800}
+.stat span{font-size:11px;color:var(--muted);font-weight:600}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}}
+.tblwrap{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:auto;max-height:70vh}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted);font-weight:700;z-index:2}
+td.l,th.l{text-align:left;position:sticky;left:0;background:var(--card);z-index:1;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+th.l{z-index:3}
+.c-ok{color:var(--ok);font-weight:800}.c-no{color:var(--no);font-weight:800}.c-s{color:var(--sab);font-weight:800}.c-k{color:var(--late);font-weight:800}.c-d{color:var(--daf);font-weight:800}
+.chips{display:flex;gap:6px;overflow:auto;padding-bottom:4px;margin-bottom:12px}
+.chip{padding:8px 14px;border-radius:999px;background:var(--card);box-shadow:var(--shadow);font-weight:700;white-space:nowrap;font-size:13px}
+.chip.on{background:var(--pri);color:#fff}
+.seltabs{display:flex;background:var(--card);border-radius:12px;padding:3px;box-shadow:var(--shadow);margin-bottom:12px;width:max-content}
+.seltabs button{padding:8px 14px;border-radius:9px;font-weight:700;font-size:13px;color:var(--muted)}
+.seltabs button.on{background:var(--pri-soft);color:var(--pri)}
+
+/* ---------- schedule ---------- */
+.week{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+@media (max-width:700px){.week{grid-template-columns:repeat(2,1fr)}}
+.day{background:var(--card);border-radius:16px;padding:12px;box-shadow:var(--shadow)}
+.day h4{margin:0 0 8px;font-size:13px}
+.day.today{box-shadow:0 0 0 2px var(--pri),var(--shadow)}
+.slot{background:var(--bg);border-radius:10px;padding:7px 9px;margin-bottom:6px;font-size:12px}
+.slot b{font-size:14px}
+.slot.dim{opacity:.4}
+.jrow{display:grid;grid-template-columns:1fr 1fr .8fr 1fr 1fr 36px;gap:6px;margin-bottom:6px}
+.jrow select,.jrow input{width:100%;padding:8px;border-radius:9px;border:1.5px solid var(--line);background:var(--card);font-size:13px}
+
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);background:#151827;color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:.25s;z-index:99;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.spin{width:22px;height:22px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--pri);animation:sp 0.8s linear infinite;margin:30px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+.sk{height:82px;border-radius:var(--r);background:linear-gradient(90deg,var(--card),var(--line),var(--card));background-size:200% 100%;animation:sh 1.2s infinite;margin-bottom:10px}
+@keyframes sh{to{background-position:-200% 0}}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<section id="login" class="hide">
+  <form class="lcard" id="loginForm" autocomplete="on">
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h1>Davomat</h1>
+    <p>Matematika · Mashrapov Q.<br>Toshkent tuman 1-son texnikumi</p>
+    <label class="fld" id="apiFld"><span>API manzili (Apps Script URL)</span><input id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+    <label class="fld"><span>Login</span><input id="lg" autocomplete="username" required></label>
+    <label class="fld"><span>Parol</span><input id="pw" type="password" autocomplete="current-password" required></label>
+    <button class="btn btn-pri btn-block" id="lbtn" type="submit">Kirish</button>
+    <div class="err" id="lerr"></div>
+    <div class="small" style="text-align:center;margin-top:6px"><a href="#" id="demoLink" style="color:var(--pri)">Demo rejimda ko'rish</a></div>
+  </form>
+</section>
+
+<!-- ================= APP ================= -->
+<section id="app" class="hide">
+  <header class="top">
+    <div class="topin">
+      <div class="brand"><div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>Davomat</div>
+      <span class="badge" id="pendingBadge" style="background:var(--no-soft);color:var(--no)"></span>
+      <div class="sp"></div>
+      <button class="iconbtn" id="refreshBtn" title="Yangilash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"/></svg></button>
+      <button class="iconbtn" id="logoutBtn" title="Chiqish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg></button>
+    </div>
+    <div class="datebar" id="datebar">
+      <button class="iconbtn" id="prevDay" aria-label="Oldingi kun"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <label class="datebox"><span id="dateTxt">—</span><span class="badge" id="weekBadge"></span><input type="date" id="dateInp"></label>
+      <button class="iconbtn" id="nextDay" aria-label="Keyingi kun"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="v-today"></div>
+    <div id="v-groups" class="hide"></div>
+    <div id="v-report" class="hide"></div>
+    <div id="v-sched" class="hide"></div>
+  </main>
+
+  <nav class="tabs"><div class="tabsin">
+    <button class="tab on" data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4M8 14l2.5 2.5L16 12"/></svg>Bugun</button>
+    <button class="tab" data-v="groups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>Guruhlar</button>
+    <button class="tab" data-v="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Natijalar</button>
+    <button class="tab" data-v="sched"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Jadval</button>
+  </div></nav>
+</section>
+
+<!-- ================= ATTENDANCE ================= -->
+<section id="att" class="hide">
+  <div class="atthead">
+    <div class="topin">
+      <button class="iconbtn" id="attBack" aria-label="Orqaga"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div><div class="atttitle" id="attTitle"></div><div class="attsub" id="attSub"></div></div>
+      <div class="sp"></div>
+      <a class="iconbtn" id="attSheet" target="_blank" rel="noopener" title="Google Sheets'da ochish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/></svg></a>
+    </div>
+    <div class="tools">
+      <button class="btn btn-ghost" id="allHere">Hammasi keldi</button>
+      <button class="btn btn-ghost" id="clearAll" style="background:var(--bg);color:var(--muted)">Tozalash</button>
+      <input class="search" id="search" placeholder="Qidirish…">
+    </div>
+  </div>
+  <div class="wrap" style="padding-top:12px">
+    <div class="legend">
+      <span><i style="background:var(--ok)"></i>+ keldi</span><span><i style="background:var(--no)"></i>− kelmadi</span>
+      <span><i style="background:var(--sab)"></i>S sababli</span><span><i style="background:var(--late)"></i>K kechikdi</span>
+      <span><i style="background:var(--daf)"></i>daftar yo'q</span>
+    </div>
+    <div id="stuList"></div>
+  </div>
+  <div class="foot"><div class="footin">
+    <div class="cnt" id="counts"></div>
+    <button class="btn btn-pri" id="saveBtn">Saqlash</button>
+  </div></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =============================================================
+   Sozlama: Apps Script Web App URL shu yerga yozilsa, kirishda so'ralmaydi
+   ============================================================= */
+const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbxEa3ESFb2i-PDxujZPGA_wvAoi2TPZ_XWVVrX50rZMfKZmGk2xBrdbQWnSA0o57nL4/exec';
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('dv_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('dv_' + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem('dv_' + k); } catch (e) {} }
+};
+const KUN = ['Yakshanba','Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba'];
+const KUNQ = ['Ya','Du','Se','Ch','Pa','Ju','Sh'];
+const OY = ['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let API = DEFAULT_API || LS.get('api', '');
+let TOKEN = LS.get('token', '');
+let INIT = null;
+let curDate = todayStr();
+let curView = 'today';
+let att = null;          // {guruh, sana, oquvchilar, dirty}
+
+function todayStr() {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }));
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function parseD(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function fmtD(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function addDays(s, n) { const d = parseD(s); d.setDate(d.getDate() + n); return fmtD(d); }
+function weekType(s) {
+  const ref = parseD((INIT && INIT.toqRef) || '2026-09-28');
+  const d = parseD(s); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd);
+  const diff = Math.round((d - ref) / (7 * 864e5));
+  return Math.abs(diff) % 2 === 0 ? 'toq' : 'juft';
+}
+function human(s) { const d = parseD(s); return KUN[d.getDay()] + ', ' + d.getDate() + '-' + OY[d.getMonth()]; }
+function toast(t, ms = 2200) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('show'), ms); }
+
+/* ------------------------- API ------------------------- */
+async function api(action, data = {}) {
+  if (API === 'demo') return Demo.call(action, data);
+  const r = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, token: TOKEN }, data)) });
+  const j = await r.json();
+  if (!j.ok) {
+    if (j.error === 'AUTH') { logout(); throw new Error('Qaytadan kiring'); }
+    throw new Error(j.error || 'Xatolik');
+  }
+  return j;
+}
+
+/* ------------------------- LOGIN ------------------------- */
+function showLogin() {
+  $('#login').classList.remove('hide'); $('#app').classList.add('hide');
+  $('#apiFld').classList.toggle('hide', !!DEFAULT_API);
+  $('#apiUrl').value = API && API !== 'demo' ? API : '';
+}
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!DEFAULT_API) {
+    const u = $('#apiUrl').value.trim();
+    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)) { $('#lerr').textContent = "Apps Script URL manzilini kiriting"; return; }
+    API = u; LS.set('api', u);
+  }
+  $('#lbtn').disabled = true; $('#lbtn').textContent = 'Tekshirilmoqda…'; $('#lerr').textContent = '';
+  try {
+    const j = await api('login', { login: $('#lg').value, parol: $('#pw').value });
+    TOKEN = j.token; LS.set('token', TOKEN);
+    start();
+  } catch (err) { $('#lerr').textContent = err.message === 'Failed to fetch' ? "Ulanib bo'lmadi — URL yoki internetni tekshiring" : err.message; }
+  $('#lbtn').disabled = false; $('#lbtn').textContent = 'Kirish';
+});
+$('#demoLink').addEventListener('click', e => { e.preventDefault(); API = 'demo'; TOKEN = 'demo'; start(); });
+function logout() { TOKEN = ''; LS.del('token'); if (API === 'demo') API = LS.get('api', ''); showLogin(); }
+$('#logoutBtn').onclick = logout;
+
+/* ------------------------- APP ------------------------- */
+async function start() {
+  $('#login').classList.add('hide'); $('#app').classList.remove('hide');
+  $('#v-today').innerHTML = '<div class="sk"></div><div class="sk"></div><div class="sk"></div>';
+  try {
+    INIT = await api('init');
+    LS.set('init', INIT);
+    curDate = INIT.bugun || todayStr();
+  } catch (err) {
+    INIT = LS.get('init', null);
+    if (!INIT) { toast(err.message); return; }
+  }
+  setDate(curDate);
+  flushPending();
+}
+
+function setDate(s) {
+  curDate = s;
+  $('#dateTxt').textContent = human(s) + (s === todayStr() ? ' · bugun' : '');
+  const w = weekType(s);
+  $('#weekBadge').textContent = w === 'toq' ? 'Toq hafta' : 'Juft hafta';
+  $('#weekBadge').className = 'badge ' + (w === 'toq' ? 'b-toq' : 'b-juft');
+  $('#dateInp').value = s;
+  render();
+}
+$('#prevDay').onclick = () => setDate(addDays(curDate, -1));
+$('#nextDay').onclick = () => setDate(addDays(curDate, 1));
+$('#dateInp').onchange = e => e.target.value && setDate(e.target.value);
+$('#refreshBtn').onclick = () => { if (INIT) start(); };
+
+$$('.tab').forEach(t => t.onclick = () => {
+  curView = t.dataset.v;
+  $$('.tab').forEach(x => x.classList.toggle('on', x === t));
+  ['today', 'groups', 'report', 'sched'].forEach(v => $('#v-' + v).classList.toggle('hide', v !== curView));
+  $('#datebar').classList.toggle('hide', curView === 'report' || curView === 'sched');
+  render();
+});
+
+function render() {
+  if (!INIT) return;
+  if (curView === 'today') renderToday();
+  else if (curView === 'groups') renderGroups();
+  else if (curView === 'report') renderReport();
+  else renderSched();
+}
+
+/* ---------- BUGUN ---------- */
+async function renderToday() {
+  const box = $('#v-today');
+  const local = lessonsFor(curDate);
+  box.innerHTML = lessonsHtml(local, null);
+  bindLessons(box);
+  try {
+    const j = await api('day', { date: curDate });
+    if (j.sana !== curDate || curView !== 'today') return;
+    box.innerHTML = lessonsHtml(j.darslar, true);
+    bindLessons(box);
+  } catch (e) { }
+}
+function lessonsFor(date) {
+  const d = parseD(date).getDay(), w = weekType(date);
+  const nomi = Object.fromEntries((INIT.guruhlar || []).map(g => [g.id, g.nomi]));
+  const order = r => ({ I: 1, II: 2, III: 3, IV: 4, V: 5 }[r] || 9);
+  return INIT.jadval.filter(j => j.kun === d && (j.hafta === 'har' || j.hafta === w))
+    .map(j => Object.assign({ nomi: nomi[j.guruh] || '' }, j)).sort((a, b) => order(a.juftlik) - order(b.juftlik));
+}
+function lessonsHtml(list, live) {
+  const pend = LS.get('pending', []);
+  let h = `<h2 class="sec">${esc(human(curDate))} — darslar</h2>`;
+  if (!list.length) h += `<div class="empty"><b>Bu kuni dars yo'q</b>${parseD(curDate).getDay() === 0 ? 'Yakshanba — dam olish kuni' : 'Jadval bo\'yicha bu kunga dars belgilanmagan'}</div>`;
+  list.forEach(l => {
+    const p = pend.some(x => x.group === l.guruh && x.date === curDate);
+    const st = p ? '<span class="pill" style="background:var(--no-soft);color:var(--no)">Yuborilmagan</span>'
+      : live === null ? '' : l.belgilangan ? '<span class="pill p-ok">Belgilandi ✓</span>' : '<span class="pill p-wait">Kutilmoqda</span>';
+    h += `<button class="lesson" data-g="${esc(l.guruh)}">
+      <div class="para">${esc(l.juftlik || '—')}<small>juftlik</small></div>
+      <div><div class="t">${esc(l.guruh)} <span style="font-weight:600;color:var(--muted);font-size:13px">${esc(l.nomi)}</span></div>
+      <div class="s">${esc(l.vaqt || '')}${l.xona ? ' · ' + esc(l.xona) : ''}${l.hafta !== 'har' ? ' · faqat ' + l.hafta + ' hafta' : ''}${l.oquvchiSoni ? ' · ' + l.oquvchiSoni + " o'quvchi" : ''}</div></div>
+      <div class="st">${st}</div></button>`;
+  });
+  h += `<h2 class="sec">Boshqa guruh</h2><div class="chips">` +
+    INIT.guruhlar.map(g => `<button class="chip" data-g="${esc(g.id)}">${esc(g.id)}</button>`).join('') + '</div>';
+  return h;
+}
+function bindLessons(box) { box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => openAtt(b.dataset.g, curDate)); }
+
+/* ---------- GURUHLAR ---------- */
+async function renderGroups() {
+  const box = $('#v-groups');
+  const draw = ov => {
+    const by = Object.fromEntries((ov || []).map(o => [o.guruh, o]));
+    box.innerHTML = `<h2 class="sec">Guruhni tanlang — ${esc(human(curDate))}</h2><div class="grid">` + INIT.guruhlar.map(g => {
+      const o = by[g.id];
+      const days = INIT.jadval.filter(j => j.guruh === g.id).map(j => KUNQ[j.kun] + (j.hafta !== 'har' ? '(' + j.hafta[0].toUpperCase() + ')' : '')).join(' ');
+      return `<button class="gcard" data-g="${esc(g.id)}"><div class="id">${esc(g.id)}</div><div class="nm">${esc(g.nomi)}</div>
+        <div class="small" style="font-weight:700">${esc(days)}</div>
+        ${o ? `<div class="bar"><i style="width:${o.davomat ?? 0}%"></i></div><div class="kv"><span>Davomat <b>${o.davomat ?? '—'}%</b></span><span>Baho <b>${o.ortacha ?? '—'}</b></span></div>` : ''}</button>`;
+    }).join('') + '</div>';
+    box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => openAtt(b.dataset.g, curDate));
+  };
+  draw(LS.get('overview', null));
+  try { const j = await api('overview'); LS.set('overview', j.guruhlar); if (curView === 'groups') draw(j.guruhlar); } catch (e) { }
+}
+
+/* ---------- DAVOMAT ---------- */
+async function openAtt(g, date) {
+  const gi = INIT.guruhlar.find(x => x.id === g) || {};
+  $('#att').classList.remove('hide'); document.body.style.overflow = 'hidden';
+  $('#attTitle').textContent = g + ' guruh';
+  $('#attSub').textContent = human(date) + ' · ' + (weekType(date) === 'toq' ? 'toq' : 'juft') + ' hafta';
+  $('#attSheet').href = gi.url || '#';
+  $('#stuList').innerHTML = '<div class="spin"></div>'; $('#counts').innerHTML = ''; $('#search').value = '';
+  att = null;
+  try {
+    const pend = LS.get('pending', []).find(x => x.group === g && x.date === date);
+    const j = await api('lesson', { group: g, date });
+    att = { guruh: g, sana: date, oquvchilar: j.oquvchilar, dirty: false };
+    if (pend) { pend.marks.forEach(m => { const o = att.oquvchilar.find(x => x.r === m.r); if (o) Object.assign(o, { s: m.s, b: m.b, d: m.d }); }); att.dirty = true; }
+    drawAtt();
+  } catch (e) { $('#stuList').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; }
+}
+function closeAtt() {
+  if (att && att.dirty && !confirmLeave()) return;
+  $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
+}
+function confirmLeave() { return window.confirm("Saqlanmagan o'zgarishlar bor. Chiqib ketilsinmi?"); }
+$('#attBack').onclick = closeAtt;
+
+function drawAtt() {
+  const q = $('#search').value.trim().toLowerCase();
+  $('#stuList').innerHTML = att.oquvchilar.map((o, i) => {
+    if (q && !o.name.toLowerCase().includes(q)) return '';
+    const parts = o.name.split(' ');
+    const cls = { '+': 's-plus', '-': 's-minus', 's': 's-s', 'k': 's-k' }[o.s] || '';
+    const canD = o.s === '+' || o.s === 'k';
+    return `<div class="stu ${cls}" data-i="${i}">
+      <div class="row1"><div class="num">${esc(o.n || i + 1)}</div><div class="nm">${esc(parts.slice(0, 2).join(' '))}<small>${esc(parts.slice(2).join(' '))}</small></div></div>
+      <div class="row2">
+        <div class="seg">${[['+', '+'], ['-', '−'], ['s', 'S'], ['k', 'K']].map(([v, t]) => `<button data-s="${v}" class="${o.s === v ? 'on' : ''}">${t}</button>`).join('')}</div>
+        <div class="grades">${[2, 3, 4, 5].map(b => `<button data-b="${b}" class="${Number(o.b) === b ? 'on' : ''}" ${o.s === '-' || o.s === 's' ? 'disabled style="opacity:.35"' : ''}>${b}</button>`).join('')}</div>
+        <button class="dbtn ${o.d ? 'on' : ''}" data-d ${canD ? '' : 'disabled'}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z"/><path d="M4 17a3 3 0 0 1 3-3h11"/>${o.d ? '<path d="M3 3l18 18" stroke-width="2.4"/>' : ''}</svg>Daftar yo'q</button>
+      </div></div>`;
+  }).join('');
+  counts();
+}
+$('#stuList').addEventListener('click', e => {
+  const card = e.target.closest('.stu'); if (!card || !att) return;
+  const o = att.oquvchilar[+card.dataset.i];
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.s !== undefined) {
+    o.s = o.s === b.dataset.s ? '' : b.dataset.s;
+    if (o.s === '-' || o.s === 's') { o.b = ''; o.d = false; }
+    if (o.s === '') o.d = false;
+  } else if (b.dataset.b !== undefined) {
+    o.b = Number(o.b) === +b.dataset.b ? '' : +b.dataset.b;
+    if (!o.s) o.s = '+';
+  } else if (b.dataset.d !== undefined) {
+    o.d = !o.d; if (!o.s) o.s = '+';
+  }
+  att.dirty = true;
+  drawAtt();
+});
+$('#search').oninput = () => att && drawAtt();
+$('#allHere').onclick = () => { if (!att) return; att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); att.dirty = true; drawAtt(); };
+$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; }); att.dirty = true; drawAtt(); };
+
+function counts() {
+  const c = { '+': 0, '-': 0, s: 0, k: 0, d: 0, e: 0 };
+  att.oquvchilar.forEach(o => { if (o.s) c[o.s]++; else c.e++; if (o.d) c.d++; });
+  $('#counts').innerHTML =
+    `<span style="background:var(--ok-soft);color:var(--ok)">+ ${c['+']}</span>` +
+    `<span style="background:var(--no-soft);color:var(--no)">− ${c['-']}</span>` +
+    (c.s ? `<span style="background:var(--sab-soft);color:var(--sab)">S ${c.s}</span>` : '') +
+    (c.k ? `<span style="background:var(--late-soft);color:var(--late)">K ${c.k}</span>` : '') +
+    (c.d ? `<span style="background:var(--daf-soft);color:var(--daf)">Daftarsiz ${c.d}</span>` : '') +
+    (c.e ? `<span style="background:var(--bg);color:var(--muted)">Belgilanmagan ${c.e}</span>` : '');
+  $('#saveBtn').textContent = att.dirty ? 'Saqlash' : 'Saqlangan ✓';
+}
+
+$('#saveBtn').onclick = async () => {
+  if (!att) return;
+  const empty = att.oquvchilar.filter(o => !o.s).length;
+  if (empty && !confirm(empty + " ta o'quvchi belgilanmagan. Shunday saqlansinmi?")) return;
+  const job = { group: att.guruh, date: att.sana, marks: att.oquvchilar.map(o => ({ r: o.r, s: o.s, b: o.b, d: o.d })) };
+  const btn = $('#saveBtn'); btn.disabled = true; btn.textContent = 'Saqlanmoqda…';
+  try {
+    await api('save', job);
+    removePending(job);
+    att.dirty = false; toast("Google Sheets'ga yozildi ✓");
+    LS.del('overview');
+    $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
+  } catch (e) {
+    addPending(job); att.dirty = false;
+    toast('Internet yo\'q — saqlab qo\'yildi, keyin avtomatik yuboriladi', 3500);
+    $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
+  }
+  btn.disabled = false;
+};
+
+/* ---------- OFFLINE NAVBAT ---------- */
+function addPending(job) { const p = LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date)); p.push(job); LS.set('pending', p); pendBadge(); }
+function removePending(job) { LS.set('pending', LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date))); pendBadge(); }
+function pendBadge() { const n = LS.get('pending', []).length; const b = $('#pendingBadge'); b.textContent = n ? n + ' ta yuborilmagan' : ''; b.classList.toggle('hide', !n); }
+async function flushPending() {
+  pendBadge();
+  for (const job of LS.get('pending', [])) {
+    try { await api('save', job); removePending(job); toast(job.group + ' ' + job.date + " — yuborildi ✓"); } catch (e) { break; }
+  }
+}
+window.addEventListener('online', flushPending);
+
+/* ---------- NATIJALAR ---------- */
+let repGroup = null, repMode = 'jami';
+async function renderReport() {
+  const box = $('#v-report');
+  if (!repGroup) {
+    const draw = ov => {
+      let h = '<h2 class="sec">Barcha guruhlar</h2>';
+      if (!ov) { box.innerHTML = h + '<div class="sk"></div><div class="sk"></div>'; return; }
+      const tot = ov.reduce((a, o) => ({ s: a.s + o.oquvchiSoni, d: a.d + o.darslar, f: a.f + o.daftarsiz }), { s: 0, d: 0, f: 0 });
+      const dv = ov.filter(o => o.davomat !== null), avg = dv.length ? Math.round(dv.reduce((a, o) => a + o.davomat, 0) / dv.length * 10) / 10 : '—';
+      h += `<div class="stats"><div class="stat"><b>${tot.s}</b><span>O'quvchilar</span></div><div class="stat"><b>${tot.d}</b><span>O'tilgan darslar</span></div>
+        <div class="stat"><b>${avg}%</b><span>O'rtacha davomat</span></div><div class="stat"><b>${tot.f}</b><span>Daftar yo'q (jami)</span></div></div><div class="grid">`;
+      h += ov.map(o => `<button class="gcard" data-g="${esc(o.guruh)}"><div class="id">${esc(o.guruh)}</div><div class="nm">${esc(o.nomi)}</div>
+        <div class="bar"><i style="width:${o.davomat ?? 0}%"></i></div>
+        <div class="kv"><span>Davomat</span><b>${o.davomat ?? '—'}%</b></div><div class="kv"><span>O'rtacha baho</span><b>${o.ortacha ?? '—'}</b></div>
+        <div class="kv"><span>Darslar</span><b>${o.darslar}</b></div><div class="kv"><span>Daftarsiz</span><b>${o.daftarsiz}</b></div></button>`).join('') + '</div>';
+      box.innerHTML = h;
+      box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { repGroup = b.dataset.g; renderReport(); });
+    };
+    draw(LS.get('overview', null));
+    try { const j = await api('overview'); LS.set('overview', j.guruhlar); if (curView === 'report' && !repGroup) draw(j.guruhlar); } catch (e) { toast(e.message); }
+    return;
+  }
+  const gi = INIT.guruhlar.find(x => x.id === repGroup) || {};
+  box.innerHTML = `<button class="btn btn-ghost" id="repBack" style="margin-top:4px">← Barcha guruhlar</button><div class="spin"></div>`;
+  $('#repBack').onclick = () => { repGroup = null; renderReport(); };
+  try {
+    const j = await api('report', { group: repGroup });
+    const S = j.oquvchilar;
+    const tot = S.reduce((a, o) => { a.k += o.keldi + o.kechikdi; a.all += o.keldi + o.kechikdi + o.kelmadi + o.sababli; a.f += o.daftarsiz; a.n += o.bahoSoni; a.sum += (o.ortacha || 0) * o.bahoSoni; return a; }, { k: 0, all: 0, f: 0, n: 0, sum: 0 });
+    let h = `<div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px"><button class="btn btn-ghost" id="repBack">←</button>
+      <div><div style="font-weight:800;font-size:20px">${esc(repGroup)} guruh</div><div class="small">${esc(gi.nomi || '')}</div></div><div class="sp"></div>
+      ${gi.url ? `<a class="btn btn-ghost" href="${esc(gi.url)}" target="_blank" rel="noopener">Sheets</a>` : ''}</div>
+      <div class="stats"><div class="stat"><b>${S.length}</b><span>O'quvchilar</span></div><div class="stat"><b>${j.sanalar.length}</b><span>Darslar</span></div>
+      <div class="stat"><b>${tot.all ? Math.round(tot.k / tot.all * 1000) / 10 : '—'}%</b><span>Davomat</span></div><div class="stat"><b>${tot.n ? Math.round(tot.sum / tot.n * 10) / 10 : '—'}</b><span>O'rtacha baho</span></div></div>
+      <div class="seltabs"><button data-m="jami" class="${repMode === 'jami' ? 'on' : ''}">Jami</button><button data-m="kunlar" class="${repMode === 'kunlar' ? 'on' : ''}">Kunlar bo'yicha</button></div>`;
+    if (repMode === 'jami') {
+      h += `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th><th>Keldi</th><th>Kelmadi</th><th>Sababli</th><th>Kechikdi</th><th>Daftar yo'q</th><th>O'rtacha</th><th>%</th></tr></thead><tbody>` +
+        S.map(o => { const all = o.keldi + o.kechikdi + o.kelmadi + o.sababli; const p = all ? Math.round((o.keldi + o.kechikdi) / all * 100) : '—';
+          return `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td><td class="c-ok">${o.keldi}</td><td class="${o.kelmadi ? 'c-no' : ''}">${o.kelmadi}</td><td class="${o.sababli ? 'c-s' : ''}">${o.sababli}</td><td class="${o.kechikdi ? 'c-k' : ''}">${o.kechikdi}</td><td class="${o.daftarsiz ? 'c-d' : ''}">${o.daftarsiz}</td><td><b>${o.ortacha ?? '—'}</b></td><td>${p}${p === '—' ? '' : '%'}</td></tr>`; }).join('') + '</tbody></table></div>';
+    } else {
+      const cell = ([s, b]) => { const c = { '+': 'c-ok', '-': 'c-no', 's': 'c-s', 'k': 'c-k' }[s.replace('d', '')] || ''; return `<td class="${s.includes('d') ? 'c-d' : c}">${esc(s.replace('-', '−'))}${b !== '' ? ' <b style="color:var(--ink)">' + esc(b) + '</b>' : ''}</td>`; };
+      h += `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th>${j.sanalar.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>` +
+        S.map(o => `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>${o.belgilar.map(cell).join('')}</tr>`).join('') + '</tbody></table></div>';
+    }
+    box.innerHTML = h;
+    $('#repBack').onclick = () => { repGroup = null; renderReport(); };
+    box.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { repMode = b.dataset.m; renderReport(); });
+  } catch (e) { box.innerHTML += `<div class="empty"><b>Xatolik</b>${esc(e.message)}</div>`; }
+}
+
+/* ---------- JADVAL ---------- */
+let schedEdit = false;
+function renderSched() {
+  const box = $('#v-sched');
+  const w = weekType(todayStr()), td = parseD(todayStr()).getDay();
+  if (!schedEdit) {
+    let h = `<h2 class="sec">Haftalik dars jadvali · bu hafta <span class="badge ${w === 'toq' ? 'b-toq' : 'b-juft'}">${w === 'toq' ? 'Toq' : 'Juft'}</span></h2><div class="week">`;
+    for (let k = 1; k <= 6; k++) {
+      const L = INIT.jadval.filter(j => j.kun === k).sort((a, b) => (a.juftlik || 'Z').localeCompare(b.juftlik || 'Z'));
+      h += `<div class="day ${k === td ? 'today' : ''}"><h4>${KUN[k]}</h4>` + (L.length ? L.map(j => `<div class="slot ${j.hafta !== 'har' && j.hafta !== w ? 'dim' : ''}"><b>${esc(j.guruh)}</b> ${j.juftlik ? esc(j.juftlik) + ' j.' : ''}<br><span class="small">${esc(j.vaqt || '')}${j.hafta !== 'har' ? ' · ' + j.hafta : ''}</span></div>`).join('') : '<div class="small">—</div>') + '</div>';
+    }
+    h += `</div><p class="small" style="margin-top:12px">Xira ko'ringan darslar — boshqa haftaga tegishli (toq/juft).</p><button class="btn btn-ghost" id="editSched">Jadvalni tahrirlash</button>`;
+    box.innerHTML = h;
+    $('#editSched').onclick = () => { schedEdit = true; renderSched(); };
+    return;
+  }
+  const rows = INIT.jadval.map(j => Object.assign({}, j));
+  const opt = (arr, v) => arr.map(([val, t]) => `<option value="${val}" ${String(v) === String(val) ? 'selected' : ''}>${t}</option>`).join('');
+  const draw = () => {
+    box.innerHTML = `<h2 class="sec">Jadvalni tahrirlash</h2>
+      <div class="jrow small" style="font-weight:700"><span>Guruh</span><span>Kun</span><span>Juftlik</span><span>Vaqt</span><span>Hafta</span><span></span></div>` +
+      rows.map((r, i) => `<div class="jrow" data-i="${i}">
+        <select data-k="guruh">${opt(INIT.guruhlar.map(g => [g.id, g.id]), r.guruh)}</select>
+        <select data-k="kun">${opt([1, 2, 3, 4, 5, 6].map(k => [k, KUN[k]]), r.kun)}</select>
+        <select data-k="juftlik">${opt([['', '—'], ['I', 'I'], ['II', 'II'], ['III', 'III'], ['IV', 'IV'], ['V', 'V']], r.juftlik)}</select>
+        <input data-k="vaqt" value="${esc(r.vaqt)}" placeholder="08:30-09:50">
+        <select data-k="hafta">${opt([['har', 'Har hafta'], ['toq', 'Toq'], ['juft', 'Juft']], r.hafta)}</select>
+        <button class="iconbtn" data-del title="O'chirish">✕</button></div>`).join('') +
+      `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-ghost" id="addRow">+ Qator</button><div class="sp"></div>
+       <button class="btn" id="cancelSched" style="background:var(--card)">Bekor qilish</button><button class="btn btn-pri" id="saveSched">Saqlash</button></div>`;
+    box.querySelectorAll('.jrow[data-i]').forEach(rw => {
+      const i = +rw.dataset.i;
+      rw.querySelectorAll('[data-k]').forEach(inp => inp.onchange = () => { rows[i][inp.dataset.k] = inp.dataset.k === 'kun' ? +inp.value : inp.value; });
+      rw.querySelector('[data-del]').onclick = () => { rows.splice(i, 1); draw(); };
+    });
+    $('#addRow').onclick = () => { rows.push({ guruh: INIT.guruhlar[0].id, kun: 1, juftlik: 'I', vaqt: '08:30-09:50', xona: '', hafta: 'har' }); draw(); };
+    $('#cancelSched').onclick = () => { schedEdit = false; renderSched(); };
+    $('#saveSched').onclick = async () => {
+      try { const j = await api('saveJadval', { rows }); INIT.jadval = j.jadval; LS.set('init', INIT); schedEdit = false; toast('Jadval saqlandi ✓'); renderSched(); }
+      catch (e) { toast(e.message); }
+    };
+  };
+  draw();
+}
+
+/* =============================================================
+   DEMO rejim (internetsiz, sinov uchun)
+   ============================================================= */
+const Demo = (() => {
+  const G = [['01-26', 'Zargar (dual)'], ['02-26', 'Kompyuter'], ['03-26', 'Grafik va dizayn texnologiyasi'], ['04-26', 'Kompyuter tarmoqlari va IT-servis'], ['05-26', 'Avtomobillar servisi (dual)'],
+    ['06-26', ''], ['07-26', ''], ['08-26', 'Moda va tikuv (dual)'], ['09-26', 'Sartarosh'], ['10-26', ''], ['10-25', "O't o'chiruvchi"]];
+  const J = [['01-26', 2, 'II', 'har'], ['01-26', 4, 'I', 'har'], ['01-26', 5, 'II', 'juft'], ['02-26', 4, 'II', 'har'], ['03-26', 6, 'I', 'har'], ['04-26', 3, 'I', 'har'], ['05-26', 5, 'I', 'har'], ['05-26', 6, 'II', 'har'],
+    ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft']];
+  const V = { I: '08:30-09:50', II: '10:00-11:20', III: '11:30-12:50' };
+  const names = ['Abduraximov Saidalo Rustam o\'g\'li', 'Ashirboyev Abdulloh Shahriddin o\'g\'li', 'Baxtiyarova Bekzoda Boxodir qizi', 'Ergasheva Mubina Anvar qizi', 'Ikramov Azamat Jonibek o\'g\'li', 'Karimov Zoxirshoh Kamoliddin o\'g\'li', 'Minasyan David Vyacheslavovich', 'Mirolimova Mohinur Kamoliddin qizi', 'Nosirov Farrux Doniyorovich', 'Odilov Muhammadrizo Shoikrom o\'g\'li', 'Qodirova Aziza Muslimjon qizi', 'Saidov Abdulloh Muxlis o\'g\'li'];
+  const store = {};
+  let jadval = J.map(([g, k, j, h]) => ({ guruh: g, kun: k, juftlik: j, vaqt: V[j], xona: '310-xona', hafta: h }));
+  const wait = () => new Promise(r => setTimeout(r, 250));
+  const rep = g => {
+    const dates = Object.keys(store).filter(k => k.startsWith(g + '|')).map(k => k.split('|')[1]).sort();
+    const S = names.map((n, i) => {
+      const st = { n: i + 1, name: n, keldi: 0, kelmadi: 0, sababli: 0, kechikdi: 0, daftarsiz: 0, bahoSoni: 0, ortacha: null, belgilar: [] }; let sum = 0;
+      dates.forEach(d => { const m = store[g + '|' + d][i] || {}; const key = { '+': 'keldi', '-': 'kelmadi', s: 'sababli', k: 'kechikdi' }[m.s]; if (key) st[key]++; if (m.d) st.daftarsiz++; if (m.b) { st.bahoSoni++; sum += +m.b; } st.belgilar.push([(m.s || '') + (m.d ? 'd' : ''), m.b || '']); });
+      st.ortacha = st.bahoSoni ? Math.round(sum / st.bahoSoni * 10) / 10 : null; return st;
+    });
+    return { guruh: g, sanalar: dates.map(d => d.slice(8) + '.' + d.slice(5, 7)), oquvchilar: S };
+  };
+  const xul = g => { const r = rep(g); let a = 0, b = 0, s = 0, n = 0, f = 0; r.oquvchilar.forEach(o => { a += o.keldi + o.kechikdi + o.kelmadi + o.sababli; b += o.keldi + o.kechikdi; f += o.daftarsiz; if (o.ortacha) { s += o.ortacha * o.bahoSoni; n += o.bahoSoni; } });
+    return { guruh: g, nomi: (G.find(x => x[0] === g) || [])[1], oquvchiSoni: names.length, darslar: r.sanalar.length, sanalar: r.sanalar, davomat: a ? Math.round(b / a * 1000) / 10 : null, ortacha: n ? Math.round(s / n * 10) / 10 : null, daftarsiz: f }; };
+  return {
+    async call(a, d) {
+      await wait();
+      if (a === 'init') return { ok: true, bugun: todayStr(), toqRef: '2026-09-28', guruhlar: G.map(([id, nomi]) => ({ id, nomi, url: '' })), jadval };
+      if (a === 'day') { const wd = parseD(d.date).getDay(), w = weekType(d.date); const key = d.date.slice(8) + '.' + d.date.slice(5, 7);
+        return { ok: true, sana: d.date, darslar: jadval.filter(j => j.kun === wd && (j.hafta === 'har' || j.hafta === w)).map(j => Object.assign({ nomi: (G.find(x => x[0] === j.guruh) || [])[1], belgilangan: !!store[j.guruh + '|' + d.date], oquvchiSoni: names.length }, j)) }; }
+      if (a === 'lesson') { const s = store[d.group + '|' + d.date] || []; return { ok: true, oquvchilar: names.map((n, i) => ({ r: i + 3, n: i + 1, name: n, s: (s[i] || {}).s || '', b: (s[i] || {}).b || '', d: !!(s[i] || {}).d })) }; }
+      if (a === 'save') { store[d.group + '|' + d.date] = d.marks.map(m => ({ s: m.s, b: m.b, d: m.d })); return { ok: true, saqlandi: d.marks.length }; }
+      if (a === 'overview') return { ok: true, guruhlar: G.map(([g]) => xul(g)) };
+      if (a === 'report') return Object.assign({ ok: true }, rep(d.group));
+      if (a === 'saveJadval') { jadval = d.rows; return { ok: true, jadval }; }
+      return { ok: true };
+    }
+  };
+})();
+
+/* ------------------------- START ------------------------- */
+pendBadge();
+if (TOKEN && API) start(); else showLogin();
+</script>
+</body>
+</html>
