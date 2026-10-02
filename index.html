@@ -202,6 +202,7 @@ th.l{z-index:3}
       <div class="brand"><div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>Davomat</div>
       <span class="badge" id="pendingBadge" style="background:var(--no-soft);color:var(--no)"></span>
       <div class="sp"></div>
+      <button class="iconbtn" id="tgBtn" title="Telegram sozlamasi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 3.5L2.5 11l7 2.5M21.5 3.5L18 20.5l-8.5-7M21.5 3.5l-12 10v6l3.5-3.5"/></svg></button>
       <button class="iconbtn" id="refreshBtn" title="Yangilash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"/></svg></button>
       <button class="iconbtn" id="logoutBtn" title="Chiqish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg></button>
     </div>
@@ -238,6 +239,7 @@ th.l{z-index:3}
     </div>
     <div class="tools">
       <button class="btn btn-ghost" id="allHere">Hammasi keldi</button>
+      <button class="btn btn-ghost hide" id="tgSend" style="background:#e3f2fd;color:#1e88e5">Telegramga</button>
       <button class="btn btn-ghost" id="clearAll" style="background:var(--bg);color:var(--muted)">Tozalash</button>
       <input class="search" id="search" placeholder="Qidirish…">
     </div>
@@ -454,6 +456,9 @@ async function openAtt(g, date) {
     const j = await api('lesson', { group: g, date });
     att = { guruh: g, sana: date, oquvchilar: j.oquvchilar, dirty: false };
     if (pend) { pend.marks.forEach(m => { const o = att.oquvchilar.find(x => x.r === m.r); if (o) Object.assign(o, { s: m.s, b: m.b, d: m.d }); }); att.dirty = true; }
+    // Guruh rahbari guruhi (05-25): III parada davomat — avtomatik hammasi "+"
+    if (KUNLIK[g] && !pend && att.oquvchilar.every(o => !o.s)) { att.oquvchilar.forEach(o => o.s = '+'); att.dirty = true; }
+    $('#tgSend').classList.toggle('hide', !KUNLIK[g]);
     drawAtt();
   } catch (e) { $('#stuList').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; }
 }
@@ -525,6 +530,7 @@ $('#saveBtn').onclick = async () => {
     await api('save', job);
     removePending(job);
     att.dirty = false; toast("Google Sheets'ga yozildi ✓");
+    if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)));
     LS.del('overview');
     $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
   } catch (e) {
@@ -534,6 +540,71 @@ $('#saveBtn').onclick = async () => {
   }
   btn.disabled = false;
 };
+
+/* ---------- TELEGRAM (@davomatq_bot) ---------- */
+// Har kuni davomat qilinadigan guruhlar: III para, natija rasmi Telegram guruhiga yuboriladi
+const KUNLIK = { '05-25': { para: 'III para' } };
+function tgCfg() { return LS.get('tg', { token: '', chat: '' }); }
+$('#tgBtn').onclick = async () => {
+  const c = tgCfg();
+  const t = prompt("@davomatq_bot tokenini kiriting (BotFather bergan, masalan 123456:ABC...).\nU faqat shu qurilmada saqlanadi:", c.token || '');
+  if (t === null) return;
+  c.token = t.trim();
+  let chat = c.chat || '';
+  if (c.token) {
+    try {
+      const r = await (await fetch('https://api.telegram.org/bot' + c.token + '/getUpdates')).json();
+      const chats = {};
+      (r.result || []).forEach(u => { const m = u.message || u.my_chat_member || u.channel_post || {}; const ch = m.chat; if (ch && ch.type !== 'private') chats[ch.id] = ch.title; });
+      const list = Object.entries(chats);
+      if (list.length) chat = list[list.length - 1][0];
+      if (list.length) toast('Topilgan guruhlar: ' + list.map(([i, n]) => n + ' (' + i + ')').join(', '), 5000);
+    } catch (e) { }
+  }
+  const ch = prompt("Telegram guruh ID si (masalan -1001234567890).\nBotni guruhga qo'shib, guruhga biror xabar yozing — ID avtomatik topiladi:", chat);
+  if (ch === null) return;
+  c.chat = ch.trim(); LS.set('tg', c);
+  toast(c.token && c.chat ? 'Telegram sozlandi ✓' : 'Telegram sozlamasi tozalandi');
+};
+$('#tgSend').onclick = () => { if (att) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o))); };
+
+function tgRasm(g, date, list) {
+  const kel = list.filter(o => o.s === '+' || o.s === 'k'), yoq = list.filter(o => o.s === '-'), sab = list.filter(o => o.s === 's'), kech = list.filter(o => o.s === 'k');
+  const nm = o => o.name.split(' ').slice(0, 2).join(' ');
+  const absent = yoq.map(o => ['−', nm(o), '#e53935']).concat(sab.map(o => ['S', nm(o) + ' (sababli)', '#1e88e5'])).concat(kech.map(o => ['K', nm(o) + ' (kechikdi)', '#f9a825']));
+  const W = 1080, H = 560 + Math.max(1, absent.length) * 54;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#f4f6fb'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#3d5afe'; x.fillRect(0, 0, W, 170);
+  x.fillStyle = '#fff'; x.font = 'bold 54px system-ui,Segoe UI,Arial'; x.fillText(g + ' guruh — davomat', 60, 85);
+  const d = parseD(date);
+  x.font = '32px system-ui,Segoe UI,Arial'; x.fillText(KUN[d.getDay()] + ', ' + d.getDate() + '-' + OY[d.getMonth()] + ' ' + d.getFullYear() + ' · ' + KUNLIK[g].para, 60, 140);
+  const box = (bx, label, val, col) => {
+    x.fillStyle = '#fff'; x.beginPath(); x.roundRect(bx, 210, 300, 190, 28); x.fill();
+    x.fillStyle = col; x.font = 'bold 96px system-ui,Segoe UI,Arial'; x.textAlign = 'center'; x.fillText(val, bx + 150, 320);
+    x.fillStyle = '#5b6275'; x.font = '30px system-ui,Segoe UI,Arial'; x.fillText(label, bx + 150, 375); x.textAlign = 'left';
+  };
+  box(60, 'Jami', list.length, '#151827'); box(390, 'Keldi', kel.length, '#2e7d32'); box(720, 'Kelmadi', yoq.length + sab.length, '#e53935');
+  x.fillStyle = '#151827'; x.font = 'bold 36px system-ui,Segoe UI,Arial';
+  x.fillText(absent.length ? 'Kelmaganlar / kechikkanlar:' : 'Hamma o\'quvchilar keldi ✓', 60, 475);
+  x.font = '32px system-ui,Segoe UI,Arial';
+  absent.forEach((a, i) => { const y = 535 + i * 54; x.fillStyle = a[2]; x.fillText(a[0], 70, y); x.fillStyle = '#151827'; x.fillText((i + 1) + '. ' + a[1], 115, y); });
+  const cap = g + ' · ' + human(date) + ' · ' + KUNLIK[g].para + '\nJami: ' + list.length + ' | Keldi: ' + kel.length + ' | Kelmadi: ' + (yoq.length + sab.length) +
+    (yoq.length ? '\nKelmadi: ' + yoq.map(nm).join(', ') : '') + (sab.length ? '\nSababli: ' + sab.map(nm).join(', ') : '') + (kech.length ? '\nKechikdi: ' + kech.map(nm).join(', ') : '');
+  return { cv, cap };
+}
+async function tgYubor(g, date, list) {
+  const c = tgCfg();
+  if (!c.token || !c.chat) { toast("Telegram sozlanmagan — yuqoridagi ✈ tugmasini bosing", 3500); return; }
+  try {
+    const { cv, cap } = tgRasm(g, date, list);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    const fd = new FormData(); fd.append('chat_id', c.chat); fd.append('caption', cap.slice(0, 1000)); fd.append('photo', blob, g + '_' + date + '.png');
+    const j = await (await fetch('https://api.telegram.org/bot' + c.token + '/sendPhoto', { method: 'POST', body: fd })).json();
+    toast(j.ok ? 'Telegram guruhiga yuborildi ✓' : 'Telegram xatosi: ' + (j.description || ''), 3500);
+  } catch (e) { toast("Telegramga yuborib bo'lmadi: " + e.message, 3500); }
+}
 
 /* ---------- OFFLINE NAVBAT ---------- */
 function addPending(job) { const p = LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date)); p.push(job); LS.set('pending', p); pendBadge(); }
@@ -648,9 +719,9 @@ function renderSched() {
    ============================================================= */
 const Demo = (() => {
   const G = [['01-26', 'Zargar (dual)'], ['02-26', 'Kompyuter'], ['03-26', 'Grafik va dizayn texnologiyasi'], ['04-26', 'Kompyuter tarmoqlari va IT-servis'], ['05-26', 'Avtomobillar servisi (dual)'],
-    ['06-26', ''], ['07-26', ''], ['08-26', 'Moda va tikuv (dual)'], ['09-26', 'Sartarosh'], ['10-26', ''], ['10-25', "O't o'chiruvchi"]];
+    ['06-26', ''], ['07-26', ''], ['08-26', 'Moda va tikuv (dual)'], ['09-26', 'Sartarosh'], ['10-26', ''], ['10-25', "O't o'chiruvchi"], ['05-25', 'Guruh rahbari (har kunlik)']];
   const J = [['01-26', 2, 'II', 'har'], ['01-26', 4, 'I', 'har'], ['01-26', 5, 'II', 'juft'], ['02-26', 4, 'II', 'har'], ['03-26', 6, 'I', 'har'], ['04-26', 3, 'I', 'har'], ['05-26', 5, 'I', 'har'], ['05-26', 6, 'II', 'har'],
-    ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft']];
+    ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft'], ['05-25', 1, 'III', 'har'], ['05-25', 2, 'III', 'har'], ['05-25', 3, 'III', 'har'], ['05-25', 4, 'III', 'har'], ['05-25', 5, 'III', 'har'], ['05-25', 6, 'III', 'har']];
   const V = { I: '08:30-09:50', II: '10:00-11:20', III: '11:30-12:50' };
   const names = ['Abduraximov Saidalo Rustam o\'g\'li', 'Ashirboyev Abdulloh Shahriddin o\'g\'li', 'Baxtiyarova Bekzoda Boxodir qizi', 'Ergasheva Mubina Anvar qizi', 'Ikramov Azamat Jonibek o\'g\'li', 'Karimov Zoxirshoh Kamoliddin o\'g\'li', 'Minasyan David Vyacheslavovich', 'Mirolimova Mohinur Kamoliddin qizi', 'Nosirov Farrux Doniyorovich', 'Odilov Muhammadrizo Shoikrom o\'g\'li', 'Qodirova Aziza Muslimjon qizi', 'Saidov Abdulloh Muxlis o\'g\'li'];
   const store = {};
