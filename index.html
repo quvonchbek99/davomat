@@ -553,7 +553,8 @@ $('#saveBtn').onclick = async () => {
 
 /* ---------- TELEGRAM (@davomatq_bot) ---------- */
 // Har kuni davomat qilinadigan guruhlar: III para, natija rasmi Telegram guruhiga yuboriladi
-const KUNLIK = { '05-25': { para: 'III para' } };
+// "05-25 I", "05-25 II", "05-25 III" — har bir para alohida guruh sifatida
+const KUNLIK = new Proxy({}, { get: (_, g) => { const m = /^05-25(?:\s+(I{1,3}))?$/.exec(String(g)); return m ? { para: (m[1] || 'III') + ' para' } : undefined; } });
 function tgCfg() { return LS.get('tg', { token: '', chat: '' }); }
 $('#tgBtn').onclick = async () => {
   const c = tgCfg();
@@ -587,7 +588,7 @@ function tgRasm(g, date, list) {
   const x = cv.getContext('2d');
   x.fillStyle = '#f4f6fb'; x.fillRect(0, 0, W, H);
   x.fillStyle = '#3d5afe'; x.fillRect(0, 0, W, 170);
-  x.fillStyle = '#fff'; x.font = 'bold 54px system-ui,Segoe UI,Arial'; x.fillText(g + ' guruh — davomat', 60, 85);
+  x.fillStyle = '#fff'; x.font = 'bold 54px system-ui,Segoe UI,Arial'; x.fillText(g.split(' ')[0] + ' guruh — davomat', 60, 85);
   const d = parseD(date);
   x.font = '32px system-ui,Segoe UI,Arial'; x.fillText(KUN[d.getDay()] + ', ' + d.getDate() + '-' + OY[d.getMonth()] + ' ' + d.getFullYear() + ' · ' + KUNLIK[g].para, 60, 140);
   const box = (bx, label, val, col) => {
@@ -600,7 +601,7 @@ function tgRasm(g, date, list) {
   x.fillText(absent.length ? 'Kelmaganlar / kechikkanlar:' : 'Hamma o\'quvchilar keldi ✓', 60, 475);
   x.font = '32px system-ui,Segoe UI,Arial';
   absent.forEach((a, i) => { const y = 535 + i * 54; x.fillStyle = a[2]; x.fillText(a[0], 70, y); x.fillStyle = '#151827'; x.fillText((i + 1) + '. ' + a[1], 115, y); });
-  const cap = g + ' · ' + human(date) + ' · ' + KUNLIK[g].para + '\nJami: ' + list.length + ' | Keldi: ' + kel.length + ' | Kelmadi: ' + (yoq.length + sab.length) +
+  const cap = g.split(' ')[0] + ' · ' + human(date) + ' · ' + KUNLIK[g].para + '\nJami: ' + list.length + ' | Keldi: ' + kel.length + ' | Kelmadi: ' + (yoq.length + sab.length) +
     (yoq.length ? '\nKelmadi: ' + yoq.map(nm).join(', ') : '') + (sab.length ? '\nSababli: ' + sab.map(nm).join(', ') : '') + (kech.length ? '\nKechikdi: ' + kech.map(nm).join(', ') : '');
   return { cv, cap };
 }
@@ -729,9 +730,9 @@ function renderSched() {
    ============================================================= */
 const Demo = (() => {
   const G = [['01-26', 'Zargar (dual)'], ['02-26', 'Kompyuter'], ['03-26', 'Grafik va dizayn texnologiyasi'], ['04-26', 'Kompyuter tarmoqlari va IT-servis'], ['05-26', 'Avtomobillar servisi (dual)'],
-    ['06-26', ''], ['07-26', ''], ['08-26', 'Moda va tikuv (dual)'], ['09-26', 'Sartarosh'], ['10-26', ''], ['10-25', "O't o'chiruvchi"], ['05-25', 'Guruh rahbari (har kunlik)']];
+    ['06-26', ''], ['07-26', ''], ['08-26', 'Moda va tikuv (dual)'], ['09-26', 'Sartarosh'], ['10-26', ''], ['10-25', "O't o'chiruvchi"], ['05-25 I', 'Guruh rahbari - I para'], ['05-25 II', 'Guruh rahbari - II para'], ['05-25 III', 'Guruh rahbari - III para']];
   const J = [['01-26', 2, 'II', 'har'], ['01-26', 4, 'I', 'har'], ['01-26', 5, 'II', 'juft'], ['02-26', 4, 'II', 'har'], ['03-26', 6, 'I', 'har'], ['04-26', 3, 'I', 'har'], ['05-26', 5, 'I', 'har'], ['05-26', 6, 'II', 'har'],
-    ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft'], ['05-25', 1, 'III', 'har'], ['05-25', 2, 'III', 'har'], ['05-25', 3, 'III', 'har'], ['05-25', 4, 'III', 'har'], ['05-25', 5, 'III', 'har'], ['05-25', 6, 'III', 'har']];
+    ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft'], ['05-25 I', 1, 'I', 'har'], ['05-25 II', 1, 'II', 'har'], ['05-25 III', 1, 'III', 'har'], ['05-25 I', 2, 'I', 'har'], ['05-25 II', 2, 'II', 'har'], ['05-25 III', 2, 'III', 'har'], ['05-25 I', 3, 'I', 'har'], ['05-25 II', 3, 'II', 'har'], ['05-25 III', 3, 'III', 'har'], ['05-25 I', 4, 'I', 'har'], ['05-25 II', 4, 'II', 'har'], ['05-25 III', 4, 'III', 'har'], ['05-25 I', 5, 'I', 'har'], ['05-25 II', 5, 'II', 'har'], ['05-25 III', 5, 'III', 'har'], ['05-25 I', 6, 'I', 'har'], ['05-25 II', 6, 'II', 'har'], ['05-25 III', 6, 'III', 'har']];
   const V = { I: '08:30-09:50', II: '10:00-11:20', III: '11:30-12:50' };
   const names = ['Abduraximov Saidalo Rustam o\'g\'li', 'Ashirboyev Abdulloh Shahriddin o\'g\'li', 'Baxtiyarova Bekzoda Boxodir qizi', 'Ergasheva Mubina Anvar qizi', 'Ikramov Azamat Jonibek o\'g\'li', 'Karimov Zoxirshoh Kamoliddin o\'g\'li', 'Minasyan David Vyacheslavovich', 'Mirolimova Mohinur Kamoliddin qizi', 'Nosirov Farrux Doniyorovich', 'Odilov Muhammadrizo Shoikrom o\'g\'li', 'Qodirova Aziza Muslimjon qizi', 'Saidov Abdulloh Muxlis o\'g\'li'];
   const store = {};
