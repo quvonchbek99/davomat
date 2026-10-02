@@ -302,10 +302,17 @@ function human(s) { const d = parseD(s); return KUN[d.getDay()] + ', ' + d.getDa
 function toast(t, ms = 2200) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('show'), ms); }
 
 /* ------------------------- API ------------------------- */
-async function api(action, data = {}) {
+async function api(action, data = {}, tries = 2) {
   if (API === 'demo') return Demo.call(action, data);
-  const r = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, token: TOKEN }, data)) });
-  const j = await r.json();
+  let j;
+  try {
+    const r = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, token: TOKEN }, data)) });
+    const txt = await r.text();
+    j = JSON.parse(txt);            // Google band bo'lsa HTML qaytaradi — qayta urinib ko'ramiz
+  } catch (e) {
+    if (tries > 1 && action !== 'save') { await new Promise(r => setTimeout(r, 1500)); return api(action, data, tries - 1); }
+    throw new Error(e instanceof SyntaxError ? "Server band — birozdan so'ng qayta urinib ko'ring" : e.message);
+  }
   if (!j.ok) {
     if (j.error === 'AUTH') { logout(); throw new Error('Qaytadan kiring'); }
     throw new Error(j.error || 'Xatolik');
@@ -341,16 +348,19 @@ $('#logoutBtn').onclick = logout;
 /* ------------------------- APP ------------------------- */
 async function start() {
   $('#login').classList.add('hide'); $('#app').classList.remove('hide');
-  $('#v-today').innerHTML = '<div class="sk"></div><div class="sk"></div><div class="sk"></div>';
+  // Tez ochilish: avval saqlangan ma'lumot bilan darhol ko'rsatamiz, serverdan yangisini fonda olamiz
+  const cached = LS.get('init', null);
+  if (cached) { INIT = cached; curDate = todayStr(); setDate(curDate); }
+  else $('#v-today').innerHTML = '<div class="sk"></div><div class="sk"></div><div class="sk"></div>';
   try {
-    INIT = await api('init');
-    LS.set('init', INIT);
-    curDate = INIT.bugun || todayStr();
+    const fresh = await api('init');
+    const changed = JSON.stringify(fresh.guruhlar) + JSON.stringify(fresh.jadval) !== (cached ? JSON.stringify(cached.guruhlar) + JSON.stringify(cached.jadval) : '');
+    INIT = fresh; LS.set('init', INIT);
+    if (!cached) { curDate = INIT.bugun || todayStr(); setDate(curDate); }
+    else if (changed && $('#att').classList.contains('hide')) render();
   } catch (err) {
-    INIT = LS.get('init', null);
-    if (!INIT) { toast(err.message); return; }
+    if (!INIT) { toast(err.message); $('#v-today').innerHTML = `<div class="empty"><b>Ulanib bo'lmadi</b>${esc(err.message)}<br><br><button class="btn btn-pri" onclick="start()">Qayta urinish</button></div>`; return; }
   }
-  setDate(curDate);
   flushPending();
 }
 
