@@ -366,6 +366,23 @@ async function start() {
     if (!INIT) { toast(err.message); $('#v-today').innerHTML = `<div class="empty"><b>Ulanib bo'lmadi</b>${esc(err.message)}<br><br><button class="btn btn-pri" onclick="start()">Qayta urinish</button></div>`; return; }
   }
   flushPending();
+  prefetchLessons(curDate);
+}
+// Bugungi darslar ro'yxatini fonda oldindan yuklab qo'yamiz — guruh bosilganda darhol ochiladi
+let prefetched = {};
+async function prefetchLessons(date) {
+  if (!INIT || API === 'demo') return;
+  const groups = [...new Set(lessonsFor(date).map(l => l.guruh))].filter(g => !prefetched[g + '|' + date]);
+  const one = async g => {
+    prefetched[g + '|' + date] = 1;
+    try {
+      const j = await api('lesson', { group: g, date }, 1);
+      LS.set('les|' + g + '|' + date, j.oquvchilar);
+      LS.set('stu|' + g, j.oquvchilar.map(o => ({ r: o.r, n: o.n, name: o.name })));
+    } catch (e) { delete prefetched[g + '|' + date]; }
+  };
+  const q = groups.slice();
+  await Promise.all([0, 1, 2].map(async () => { while (q.length) await one(q.shift()); }));
 }
 
 function setDate(s) {
@@ -403,6 +420,7 @@ async function renderToday() {
   const box = $('#v-today');
   const local = lessonsFor(curDate);
   box.innerHTML = lessonsHtml(local, null);
+  prefetchLessons(curDate);
   bindLessons(box);
   try {
     const j = await api('day', { date: curDate });
@@ -638,13 +656,14 @@ function tgRasm(g, date, list) {
   x.fillStyle = '#151827'; F(1, 26);
   x.fillText('№', C.n, T0 - 40); x.fillText("O'quvchi", C.nm, T0 - 40); x.fillText('Davomat', C.st, T0 - 40);
   x.textAlign = 'center'; x.fillText('Forma', C.f, T0 - 40); x.fillText('Qurol', C.q, T0 - 40); x.textAlign = 'left';
-  const ST = { '+': ['Keldi', '#2e7d32', '#e8f5e9'], 'k': ['Kechikdi', '#b7791f', '#fff8e1'], '-': ['Kelmadi', '#e53935', '#ffebee'], 's': ['Sababli', '#1e88e5', '#e3f2fd'], '': ['—', '#8a90a2', '#eef0f5'] };
+  const ST = { '+': ['Keldi', '#2e7d32', '#e8f5e9'], 'k': ['Kechikdi', '#e53935', '#ffebee'], '-': ['Kelmadi', '#e53935', '#ffebee'], 's': ['Sababli', '#1e88e5', '#e3f2fd'], '': ['—', '#8a90a2', '#eef0f5'] };
   list.forEach((o, i) => {
     const y = T0 + i * RH, st = ST[o.s] || ST[''], here = o.s === '+' || o.s === 'k';
     x.fillStyle = i % 2 ? '#f4f6fb' : '#fff'; x.fillRect(30, y - 10, W - 60, RH);
     const cy = y + RH / 2 - 10;
     x.fillStyle = '#5b6275'; F(0, 26); x.fillText(String(o.n || i + 1), C.n, cy + 9);
-    x.fillStyle = here ? '#151827' : st[1]; F(0, 30); x.fillText(nm(o).slice(0, 30), C.nm, cy + 10);
+    const qizil = o.s === 'k' || (here && o.f);
+    x.fillStyle = qizil ? '#e53935' : here ? '#151827' : st[1]; F(qizil ? 1 : 0, 30); x.fillText(nm(o).slice(0, 30), C.nm, cy + 10);
     x.fillStyle = st[2]; x.beginPath(); x.roundRect(C.st - 10, cy - 20, 160, 40, 20); x.fill();
     x.fillStyle = st[1]; F(1, 24); x.textAlign = 'center'; x.fillText(st[0], C.st + 70, cy + 8);
     F(1, 30);
