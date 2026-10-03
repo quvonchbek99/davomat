@@ -457,26 +457,43 @@ async function renderGroups() {
 }
 
 /* ---------- DAVOMAT ---------- */
+let openSeq = 0;
 async function openAtt(g, date) {
   const gi = INIT.guruhlar.find(x => x.id === g) || {};
   $('#att').classList.remove('hide'); document.body.style.overflow = 'hidden';
   $('#attTitle').textContent = g + ' guruh';
   $('#attSub').textContent = human(date) + ' · ' + (weekType(date) === 'toq' ? 'toq' : 'juft') + ' hafta';
   $('#attSheet').href = gi.url || '#';
-  $('#stuList').innerHTML = '<div class="spin"></div>'; $('#counts').innerHTML = ''; $('#search').value = '';
+  $('#counts').innerHTML = ''; $('#search').value = '';
+  $('#tgSend').classList.toggle('hide', !KUNLIK[g]);
+  $('#fotoBtn').classList.toggle('hide', !KUNLIK[g]);
   att = null;
-  try {
+  const key = 'les|' + g + '|' + date;
+  const show = (list, fromCache) => {
+    const keepFoto = att && att.guruh === g && att.sana === date ? att.foto : null;
+    att = { guruh: g, sana: date, oquvchilar: list.map(o => Object.assign({}, o)), dirty: false, touched: false, cache: fromCache };
     const pend = LS.get('pending', []).find(x => x.group === g && x.date === date);
-    const j = await api('lesson', { group: g, date });
-    att = { guruh: g, sana: date, oquvchilar: j.oquvchilar, dirty: false };
-    if (pend) { pend.marks.forEach(m => { const o = att.oquvchilar.find(x => x.r === m.r); if (o) Object.assign(o, { s: m.s, b: m.b, d: m.d }); }); att.dirty = true; }
-    // Guruh rahbari guruhi (05-25): III parada davomat — avtomatik hammasi "+"
+    if (pend) { pend.marks.forEach(m => { const o = att.oquvchilar.find(x => x.r === m.r); if (o) Object.assign(o, { s: m.s, b: m.b, d: m.d }); }); }
+    // Guruh rahbari guruhi (05-25): avtomatik hammasi "+"
     if (KUNLIK[g] && !pend && att.oquvchilar.every(o => !o.s)) { att.oquvchilar.forEach(o => o.s = '+'); att.dirty = true; }
-    $('#tgSend').classList.toggle('hide', !KUNLIK[g]);
-    $('#fotoBtn').classList.toggle('hide', !KUNLIK[g]); setFoto(null);
     if (KUNLIK[g]) { const qf = LS.get('qf|' + g + '|' + date, {}); att.oquvchilar.forEach(o => { const v = qf[o.r] || {}; o.q = !!v.q; o.f = !!v.f; }); }
+    setFoto(keepFoto);
     drawAtt();
-  } catch (e) { $('#stuList').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; }
+  };
+  // Keshdan darhol ko'rsatish: shu kunning o'zi, bo'lmasa guruh ro'yxati (belgisiz)
+  const myOpen = ++openSeq;
+  const les = LS.get(key, null), stu = LS.get('stu|' + g, null);
+  if (les) show(les, true);
+  else if (stu) show(stu.map(o => Object.assign({}, o, { s: '', b: '', d: false })), true);
+  else $('#stuList').innerHTML = '<div class="spin"></div>';
+  try {
+    const j = await api('lesson', { group: g, date });
+    LS.set(key, j.oquvchilar);
+    LS.set('stu|' + g, j.oquvchilar.map(o => ({ r: o.r, n: o.n, name: o.name })));
+    // Foydalanuvchi hali hech narsa bosmagan bo'lsa — serverdagi yangi ma'lumot bilan almashtiramiz
+    if (myOpen !== openSeq || $('#att').classList.contains('hide')) return;   // boshqa guruh ochilgan yoki yopilgan
+    if (!att || !att.touched) show(j.oquvchilar, false);
+  } catch (e) { if (myOpen === openSeq && !att) $('#stuList').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; }
 }
 function closeAtt() {
   if (att && att.dirty && !confirmLeave()) return;
@@ -523,12 +540,12 @@ $('#stuList').addEventListener('click', e => {
   }
   if (o.s === '-' || o.s === 's' || o.s === '') { o.f = false; o.q = false; }
   saveQF();
-  att.dirty = true;
+  att.dirty = true; att.touched = true;
   drawAtt();
 });
 $('#search').oninput = () => att && drawAtt();
-$('#allHere').onclick = () => { if (!att) return; att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); att.dirty = true; drawAtt(); };
-$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; o.f = false; o.q = false; }); saveQF(); att.dirty = true; drawAtt(); };
+$('#allHere').onclick = () => { if (!att) return; att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); att.dirty = att.touched = true; drawAtt(); };
+$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; o.f = false; o.q = false; }); saveQF(); att.dirty = att.touched = true; drawAtt(); };
 
 function counts() {
   const c = { '+': 0, '-': 0, s: 0, k: 0, d: 0, e: 0 };
@@ -545,25 +562,20 @@ function counts() {
   $('#saveBtn').textContent = att.dirty ? 'Saqlash' : 'Saqlangan ✓';
 }
 
-$('#saveBtn').onclick = async () => {
+$('#saveBtn').onclick = () => {
   if (!att) return;
   const empty = att.oquvchilar.filter(o => !o.s).length;
   if (empty && !confirm(empty + " ta o'quvchi belgilanmagan. Shunday saqlansinmi?")) return;
-  const job = { group: att.guruh, date: att.sana, marks: att.oquvchilar.map(o => ({ r: o.r, s: o.s, b: o.b, d: o.d })) };
-  const btn = $('#saveBtn'); btn.disabled = true; btn.textContent = 'Saqlanmoqda…';
-  try {
-    await api('save', job);
-    removePending(job);
-    att.dirty = false; toast("Google Sheets'ga yozildi ✓");
-    if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)), att.foto);
-    LS.del('overview');
-    $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
-  } catch (e) {
-    addPending(job); att.dirty = false;
-    toast('Internet yo\'q — saqlab qo\'yildi, keyin avtomatik yuboriladi', 3500);
-    $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
-  }
-  btn.disabled = false;
+  // 1) Avval shu qurilmaga darhol saqlanadi, 2) keyin fonda Google Sheets'ga zaxiralanadi
+  const job = { id: Date.now(), group: att.guruh, date: att.sana, marks: att.oquvchilar.map(o => ({ r: o.r, s: o.s, b: o.b, d: o.d })) };
+  addPending(job);
+  LS.set('les|' + att.guruh + '|' + att.sana, att.oquvchilar.map(o => ({ r: o.r, n: o.n, name: o.name, s: o.s, b: o.b, d: o.d })));
+  att.dirty = false;
+  toast("Saqlandi ✓ — Google Sheets'ga fonda yuborilmoqda", 2500);
+  if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)), att.foto);
+  LS.del('overview');
+  $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
+  flushPending();
 };
 
 /* ---------- TELEGRAM (@davomatq_bot) ---------- */
@@ -675,13 +687,22 @@ async function tgYubor(g, date, list, foto) {
 
 /* ---------- OFFLINE NAVBAT ---------- */
 function addPending(job) { const p = LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date)); p.push(job); LS.set('pending', p); pendBadge(); }
-function removePending(job) { LS.set('pending', LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date))); pendBadge(); }
-function pendBadge() { const n = LS.get('pending', []).length; const b = $('#pendingBadge'); b.textContent = n ? n + ' ta yuborilmagan' : ''; b.classList.toggle('hide', !n); }
+function removePending(job) { LS.set('pending', LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date && (x.id || 0) === (job.id || 0)))); pendBadge(); }
+function pendBadge() { const n = LS.get('pending', []).length; const b = $('#pendingBadge'); b.textContent = n ? "Sheets'ga yuborilmoqda: " + n : ''; b.classList.toggle('hide', !n); }
+let flushing = false, flushAgain = false;
 async function flushPending() {
   pendBadge();
-  for (const job of LS.get('pending', [])) {
-    try { await api('save', job); removePending(job); toast(job.group + ' ' + job.date + " — yuborildi ✓"); } catch (e) { break; }
-  }
+  if (flushing) { flushAgain = true; return; }
+  flushing = true;
+  try {
+    do {
+      flushAgain = false;
+      for (const job of LS.get('pending', [])) {
+        try { await api('save', job); removePending(job); LS.del('overview'); toast(job.group + ' · ' + job.date + " — Google Sheets'ga yozildi ✓", 2000); }
+        catch (e) { setTimeout(flushPending, 30000); flushAgain = false; break; }
+      }
+    } while (flushAgain);
+  } finally { flushing = false; pendBadge(); }
 }
 window.addEventListener('online', flushPending);
 
