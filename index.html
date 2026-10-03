@@ -167,6 +167,19 @@ th.l{z-index:3}
 .slot{background:var(--bg);border-radius:10px;padding:7px 9px;margin-bottom:6px;font-size:12px}
 .slot b{font-size:14px}
 .slot.dim{opacity:.4}
+.oybar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.oybar b{font-size:17px}
+.oygrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px}
+.oyh{text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
+.oyd{background:var(--card);border-radius:10px;min-height:62px;padding:4px;display:flex;flex-direction:column;align-items:stretch;gap:2px;box-shadow:var(--shadow);text-align:left}
+.oyd span{font-weight:800;font-size:13px;position:relative}
+.oyd span i{position:absolute;right:0;top:3px;width:6px;height:6px;border-radius:50%;background:var(--pri)}
+.oyd em{font-style:normal;font-size:10px;font-weight:700;background:var(--bg);border-radius:5px;padding:0 3px;white-space:nowrap;overflow:hidden}
+.oyd.sun{opacity:.45}.oyd.bugun{box-shadow:inset 0 0 0 2px var(--pri)}.oyd.sel{background:#e8ecff}
+.oypanel{background:var(--card);border-radius:16px;padding:14px;box-shadow:var(--shadow);margin-bottom:18px;display:flex;flex-direction:column;gap:8px}
+.oyrow{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.oyrow .btn{padding:6px 10px}
+.oyadd{display:flex;gap:6px;flex-wrap:wrap}.oyadd select{padding:8px;border-radius:9px;border:1.5px solid var(--line);background:var(--card)}
 .jrow{display:grid;grid-template-columns:1fr 1fr .8fr 1fr 1fr 36px;gap:6px;margin-bottom:6px}
 .jrow select,.jrow input{width:100%;padding:8px;border-radius:9px;border:1.5px solid var(--line);background:var(--card);font-size:13px}
 
@@ -425,7 +438,9 @@ async function renderToday() {
   try {
     const j = await api('day', { date: curDate });
     if (j.sana !== curDate || curView !== 'today') return;
-    box.innerHTML = lessonsHtml(j.darslar, true);
+    const loc = lessonsFor(curDate), key = l => l.guruh + '|' + l.juftlik;
+    const srv = Object.fromEntries((j.darslar || []).map(l => [key(l), l]));
+    box.innerHTML = lessonsHtml(loc.map(l => srv[key(l)] || Object.assign({ belgilangan: false }, l)), true);
     bindLessons(box);
   } catch (e) { }
 }
@@ -433,7 +448,8 @@ function lessonsFor(date) {
   const d = parseD(date).getDay(), w = weekType(date);
   const nomi = Object.fromEntries((INIT.guruhlar || []).map(g => [g.id, g.nomi]));
   const order = r => ({ I: 1, II: 2, III: 3, IV: 4, V: 5 }[r] || 9);
-  return INIT.jadval.filter(j => j.kun === d && (j.hafta === 'har' || j.hafta === w))
+  const bekor = new Set(INIT.jadval.filter(j => j.hafta === 'x:' + date).map(j => j.guruh + '|' + j.juftlik));
+  return INIT.jadval.filter(j => (j.kun === d && (j.hafta === 'har' || j.hafta === w) && !bekor.has(j.guruh + '|' + j.juftlik)) || j.hafta === 'd:' + date)
     .map(j => Object.assign({ nomi: nomi[j.guruh] || '' }, j)).sort((a, b) => order(a.juftlik) - order(b.juftlik));
 }
 function lessonsHtml(list, live) {
@@ -447,7 +463,7 @@ function lessonsHtml(list, live) {
     h += `<button class="lesson" data-g="${esc(l.guruh)}">
       <div class="para">${esc(l.juftlik || '—')}<small>juftlik</small></div>
       <div><div class="t">${esc(l.guruh)} <span style="font-weight:600;color:var(--muted);font-size:13px">${esc(l.nomi)}</span></div>
-      <div class="s">${esc(l.vaqt || '')}${l.xona ? ' · ' + esc(l.xona) : ''}${l.hafta !== 'har' ? ' · faqat ' + l.hafta + ' hafta' : ''}${l.oquvchiSoni ? ' · ' + l.oquvchiSoni + " o'quvchi" : ''}</div></div>
+      <div class="s">${esc(l.vaqt || '')}${l.xona ? ' · ' + esc(l.xona) : ''}${l.hafta === 'toq' || l.hafta === 'juft' ? ' · faqat ' + l.hafta + ' hafta' : /^d:/.test(l.hafta) ? ' · qo\'shimcha dars' : ''}${l.oquvchiSoni ? ' · ' + l.oquvchiSoni + " o'quvchi" : ''}</div></div>
       <div class="st">${st}</div></button>`;
   });
   h += `<h2 class="sec">Boshqa guruh</h2><div class="chips">` +
@@ -776,6 +792,72 @@ async function renderReport() {
   } catch (e) { box.innerHTML += `<div class="empty"><b>Xatolik</b>${esc(e.message)}</div>`; }
 }
 
+/* ---------- OYLIK KALENDAR ---------- */
+let oyCur = null, oySel = null;
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+function oyHtml() {
+  if (!oyCur) { const t = parseD(curDate || todayStr()); oyCur = [t.getFullYear(), t.getMonth()]; }
+  const [Y, M] = oyCur, first = new Date(Y, M, 1), days = new Date(Y, M + 1, 0).getDate();
+  const off = (first.getDay() + 6) % 7;   // dushanbadan
+  let h = `<h2 class="sec">Oylik kalendar</h2><div class="oybar"><button class="iconbtn" id="oyPrev">‹</button><b>${OY[M][0].toUpperCase() + OY[M].slice(1)} ${Y}</b><button class="iconbtn" id="oyNext">›</button></div>
+    <div class="oygrid">${['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'].map(k => `<div class="oyh">${k}</div>`).join('')}`;
+  for (let i = 0; i < off; i++) h += '<div></div>';
+  for (let d = 1; d <= days; d++) {
+    const s = ymd(new Date(Y, M, d)), L = lessonsFor(s), sun = new Date(Y, M, d).getDay() === 0;
+    const ext = INIT.jadval.some(j => j.hafta === 'd:' + s || j.hafta === 'x:' + s);
+    h += `<button class="oyd ${s === todayStr() ? 'bugun' : ''} ${s === oySel ? 'sel' : ''} ${sun ? 'sun' : ''}" data-oy="${s}"><span>${d}${ext ? '<i></i>' : ''}</span>${L.slice(0, 3).map(l => `<em>${esc(l.guruh.split(' ')[0])}</em>`).join('')}${L.length > 3 ? `<em>+${L.length - 3}</em>` : ''}</button>`;
+  }
+  h += '</div>';
+  if (oySel) {
+    const L = lessonsFor(oySel), d = parseD(oySel), wk = weekType(oySel);
+    const bekor = INIT.jadval.filter(j => j.hafta === 'x:' + oySel);
+    const jopt = ['I', 'II', 'III', 'IV', 'V'].map(r => `<option>${r}</option>`).join('');
+    h += `<div class="oypanel"><b>${esc(human(oySel))}</b>` +
+      (L.length ? L.map(l => `<div class="oyrow"><span><b>${esc(l.juftlik || '—')}</b> · ${esc(l.guruh)}${/^d:/.test(l.hafta) ? ' <small>(qo\'shimcha)</small>' : ''}</span><button class="btn btn-ghost" data-del="${esc(l.guruh)}|${esc(l.juftlik)}|${esc(l.hafta)}">✕</button></div>`).join('') : '<div class="small">Bu kuni dars yo\'q</div>') +
+      bekor.map(b => `<div class="oyrow" style="opacity:.55"><span><s>${esc(b.juftlik)} · ${esc(b.guruh)}</s> <small>(bekor)</small></span><button class="btn btn-ghost" data-tik="${esc(b.guruh)}|${esc(b.juftlik)}">Qaytarish</button></div>`).join('') +
+      `<div class="oyadd"><select id="oyG">${INIT.guruhlar.map(g => `<option>${esc(g.id)}</option>`).join('')}</select><select id="oyJ">${jopt}</select><button class="btn btn-pri" id="oyAdd">+ Qo'shish</button></div></div>`;
+  }
+  return h;
+}
+function bindOy() {
+  const box = $('#v-sched');
+  $('#oyPrev').onclick = () => { oyCur = oyCur[1] ? [oyCur[0], oyCur[1] - 1] : [oyCur[0] - 1, 11]; oySel = null; renderSched(); };
+  $('#oyNext').onclick = () => { oyCur = oyCur[1] < 11 ? [oyCur[0], oyCur[1] + 1] : [oyCur[0] + 1, 0]; oySel = null; renderSched(); };
+  box.querySelectorAll('[data-oy]').forEach(b => b.onclick = () => { oySel = oySel === b.dataset.oy ? null : b.dataset.oy; renderSched(); });
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    const [g, jt, hf] = b.dataset.del.split('|');
+    if (/^d:/.test(hf)) INIT.jadval = INIT.jadval.filter(j => !(j.guruh === g && j.juftlik === jt && j.hafta === hf));
+    else INIT.jadval.push({ guruh: g, kun: parseD(oySel).getDay(), juftlik: jt, vaqt: '', xona: '', hafta: 'x:' + oySel });
+    jadvalYoz();
+  });
+  box.querySelectorAll('[data-tik]').forEach(b => b.onclick = () => {
+    const [g, jt] = b.dataset.tik.split('|');
+    INIT.jadval = INIT.jadval.filter(j => !(j.guruh === g && j.juftlik === jt && j.hafta === 'x:' + oySel)); jadvalYoz();
+  });
+  const add = $('#oyAdd');
+  if (add) add.onclick = () => {
+    const g = $('#oyG').value, jt = $('#oyJ').value;
+    const was = INIT.jadval.find(j => j.guruh === g && j.juftlik === jt && j.hafta === 'x:' + oySel);
+    if (was) INIT.jadval = INIT.jadval.filter(j => j !== was);
+    else if (!lessonsFor(oySel).some(l => l.guruh === g && l.juftlik === jt)) {
+      const v = { I: '08:30-09:50', II: '10:00-11:20', III: '11:30-12:50', IV: '13:30-14:50', V: '15:00-16:20' }[jt] || '';
+      INIT.jadval.push({ guruh: g, kun: parseD(oySel).getDay(), juftlik: jt, vaqt: v, xona: '', hafta: 'd:' + oySel });
+    }
+    jadvalYoz();
+  };
+}
+// Darhol ko'rsatamiz, Google Sheets'ga fonda yozamiz
+let jadvalTimer = null;
+function jadvalYoz() {
+  LS.set('init', INIT); renderSched();
+  clearTimeout(jadvalTimer);
+  jadvalTimer = setTimeout(async () => {
+    try { await api('saveJadval', { rows: INIT.jadval }); toast("Jadval Google Sheets'ga saqlandi ✓", 1800); }
+    catch (e) { toast('Jadval saqlanmadi: ' + e.message, 3500); }
+  }, 1200);
+}
+
 /* ---------- JADVAL ---------- */
 let schedEdit = false;
 function renderSched() {
@@ -784,15 +866,17 @@ function renderSched() {
   if (!schedEdit) {
     let h = `<h2 class="sec">Haftalik dars jadvali · bu hafta <span class="badge ${w === 'toq' ? 'b-toq' : 'b-juft'}">${w === 'toq' ? 'Toq' : 'Juft'}</span></h2><div class="week">`;
     for (let k = 1; k <= 6; k++) {
-      const L = INIT.jadval.filter(j => j.kun === k).sort((a, b) => (a.juftlik || 'Z').localeCompare(b.juftlik || 'Z'));
+      const L = INIT.jadval.filter(j => j.kun === k && (j.hafta === 'har' || j.hafta === 'toq' || j.hafta === 'juft')).sort((a, b) => (a.juftlik || 'Z').localeCompare(b.juftlik || 'Z'));
       h += `<div class="day ${k === td ? 'today' : ''}"><h4>${KUN[k]}</h4>` + (L.length ? L.map(j => `<div class="slot ${j.hafta !== 'har' && j.hafta !== w ? 'dim' : ''}"><b>${esc(j.guruh)}</b> ${j.juftlik ? esc(j.juftlik) + ' j.' : ''}<br><span class="small">${esc(j.vaqt || '')}${j.hafta !== 'har' ? ' · ' + j.hafta : ''}</span></div>`).join('') : '<div class="small">—</div>') + '</div>';
     }
     h += `</div><p class="small" style="margin-top:12px">Xira ko'ringan darslar — boshqa haftaga tegishli (toq/juft).</p><button class="btn btn-ghost" id="editSched">Jadvalni tahrirlash</button>`;
-    box.innerHTML = h;
+    box.innerHTML = oyHtml() + h.replace('Jadvalni tahrirlash', 'Haftalik jadvalni tahrirlash');
+    bindOy();
     $('#editSched').onclick = () => { schedEdit = true; renderSched(); };
     return;
   }
-  const rows = INIT.jadval.map(j => Object.assign({}, j));
+  const extra = INIT.jadval.filter(j => !(j.hafta === 'har' || j.hafta === 'toq' || j.hafta === 'juft'));
+  const rows = INIT.jadval.filter(j => (j.hafta === 'har' || j.hafta === 'toq' || j.hafta === 'juft')).map(j => Object.assign({}, j));
   const opt = (arr, v) => arr.map(([val, t]) => `<option value="${val}" ${String(v) === String(val) ? 'selected' : ''}>${t}</option>`).join('');
   const draw = () => {
     box.innerHTML = `<h2 class="sec">Jadvalni tahrirlash</h2>
@@ -814,7 +898,7 @@ function renderSched() {
     $('#addRow').onclick = () => { rows.push({ guruh: INIT.guruhlar[0].id, kun: 1, juftlik: 'I', vaqt: '08:30-09:50', xona: '', hafta: 'har' }); draw(); };
     $('#cancelSched').onclick = () => { schedEdit = false; renderSched(); };
     $('#saveSched').onclick = async () => {
-      try { const j = await api('saveJadval', { rows }); INIT.jadval = j.jadval; LS.set('init', INIT); schedEdit = false; toast('Jadval saqlandi ✓'); renderSched(); }
+      try { const j = await api('saveJadval', { rows: rows.concat(extra) }); INIT.jadval = j.jadval; LS.set('init', INIT); schedEdit = false; toast('Jadval saqlandi ✓'); renderSched(); }
       catch (e) { toast(e.message); }
     };
   };
