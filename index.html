@@ -587,7 +587,7 @@ $('#tgBtn').onclick = async () => {
       if (list.length) toast('Topilgan guruhlar: ' + list.map(([i, n]) => n + ' (' + i + ')').join(', '), 5000);
     } catch (e) { }
   }
-  const ch = prompt("Telegram guruh ID si (masalan -1001234567890).\nBotni guruhga qo'shib, guruhga biror xabar yozing — ID avtomatik topiladi:", chat);
+  const ch = prompt("Telegram guruh ID si (masalan -1001234567890). Bir nechta guruh bo'lsa vergul bilan yozing.\nBotni guruhga qo'shib, guruhga biror xabar yozing — ID avtomatik topiladi:", chat);
   if (ch === null) return;
   c.chat = ch.trim(); LS.set('tg', c);
   toast(c.token && c.chat ? 'Telegram sozlandi ✓' : 'Telegram sozlamasi tozalandi');
@@ -654,16 +654,22 @@ async function tgYubor(g, date, list, foto) {
   try {
     const { cv, cap } = tgRasm(g, date, list);
     const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
-    const fd = new FormData(); fd.append('chat_id', c.chat);
+    const chats = String(c.chat).split(/[,;\s]+/).filter(Boolean);
+    toast('Telegramga yuborilmoqda…', 2000);
+    const natija = [];
+    for (const chat of chats) {
+    const fd = new FormData(); fd.append('chat_id', chat);
     let method = 'sendPhoto';
     if (foto) {
       method = 'sendMediaGroup';
       fd.append('media', JSON.stringify([{ type: 'photo', media: 'attach://hisobot', caption: cap.slice(0, 1000) }, { type: 'photo', media: 'attach://guruh' }]));
       fd.append('hisobot', blob, g + '_' + date + '.png'); fd.append('guruh', foto, foto.name || 'guruh.jpg');
     } else { fd.append('caption', cap.slice(0, 1000)); fd.append('photo', blob, g + '_' + date + '.png'); }
-    toast('Telegramga yuborilmoqda…', 2000);
     const j = await (await fetch('https://api.telegram.org/bot' + c.token + '/' + method, { method: 'POST', body: fd })).json();
-    toast(j.ok ? 'Telegram guruhiga yuborildi ✓' : 'Telegram xatosi: ' + (j.description || ''), 3500);
+    natija.push(j.ok ? null : chat + ': ' + (j.description || 'xato'));
+    }
+    const xato = natija.filter(Boolean);
+    toast(!xato.length ? (chats.length > 1 ? chats.length + ' ta guruhga yuborildi ✓' : 'Telegram guruhiga yuborildi ✓') : 'Telegram xatosi: ' + xato.join('; '), 4500);
   } catch (e) { toast("Telegramga yuborib bo'lmadi: " + e.message, 3500); }
 }
 
