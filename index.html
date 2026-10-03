@@ -123,6 +123,8 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .dbtn{height:38px;padding:0 12px;border-radius:10px;background:var(--bg);font-weight:700;font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
 .dbtn.on{background:var(--daf-soft);color:var(--daf);box-shadow:inset 0 0 0 1.5px var(--daf)}
 .dbtn:disabled{opacity:.35}
+.dbtn.qf.on{background:#fff3e0;color:#ef6c00;box-shadow:inset 0 0 0 1.5px #ef6c00}
+#fotoBtn.on{background:#e8f5e9;color:#2e7d32}
 .foot{position:fixed;left:0;right:0;bottom:0;z-index:45;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
 .footin{max-width:860px;margin:0 auto;display:flex;align-items:center;gap:10px}
 .cnt{display:flex;gap:6px;flex-wrap:wrap;flex:1}
@@ -239,6 +241,8 @@ th.l{z-index:3}
     </div>
     <div class="tools">
       <button class="btn btn-ghost" id="allHere">Hammasi keldi</button>
+      <button class="btn btn-ghost hide" id="fotoBtn" style="background:#f3e5f5;color:#8e24aa">📷 Guruh rasmi</button>
+      <input type="file" id="fotoInp" accept="image/*" class="hide">
       <button class="btn btn-ghost hide" id="tgSend" style="background:#e3f2fd;color:#1e88e5">Telegramga</button>
       <button class="btn btn-ghost" id="clearAll" style="background:var(--bg);color:var(--muted)">Tozalash</button>
       <input class="search" id="search" placeholder="Qidirish…">
@@ -469,6 +473,8 @@ async function openAtt(g, date) {
     // Guruh rahbari guruhi (05-25): III parada davomat — avtomatik hammasi "+"
     if (KUNLIK[g] && !pend && att.oquvchilar.every(o => !o.s)) { att.oquvchilar.forEach(o => o.s = '+'); att.dirty = true; }
     $('#tgSend').classList.toggle('hide', !KUNLIK[g]);
+    $('#fotoBtn').classList.toggle('hide', !KUNLIK[g]); setFoto(null);
+    if (KUNLIK[g]) { const qf = LS.get('qf|' + g + '|' + date, {}); att.oquvchilar.forEach(o => { const v = qf[o.r] || {}; o.q = !!v.q; o.f = !!v.f; }); }
     drawAtt();
   } catch (e) { $('#stuList').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; }
 }
@@ -492,6 +498,7 @@ function drawAtt() {
         <div class="seg">${[['+', '+'], ['-', '−'], ['s', 'S'], ['k', 'K']].map(([v, t]) => `<button data-s="${v}" class="${o.s === v ? 'on' : ''}">${t}</button>`).join('')}</div>
         <div class="grades">${[2, 3, 4, 5].map(b => `<button data-b="${b}" class="${Number(o.b) === b ? 'on' : ''}" ${o.s === '-' || o.s === 's' ? 'disabled style="opacity:.35"' : ''}>${b}</button>`).join('')}</div>
         <button class="dbtn ${o.d ? 'on' : ''}" data-d ${canD ? '' : 'disabled'}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z"/><path d="M4 17a3 3 0 0 1 3-3h11"/>${o.d ? '<path d="M3 3l18 18" stroke-width="2.4"/>' : ''}</svg>Daftar yo'q</button>
+        ${KUNLIK[att.guruh] ? `<button class="dbtn qf ${o.f ? 'on' : ''}" data-f ${canD ? '' : 'disabled'}>👕 Forma yo'q</button><button class="dbtn qf ${o.q ? 'on' : ''}" data-q ${canD ? '' : 'disabled'}>✏️ O'quv quroli yo'q</button>` : ''}
       </div></div>`;
   }).join('');
   counts();
@@ -509,24 +516,32 @@ $('#stuList').addEventListener('click', e => {
     if (!o.s) o.s = '+';
   } else if (b.dataset.d !== undefined) {
     o.d = !o.d; if (!o.s) o.s = '+';
+  } else if (b.dataset.f !== undefined) {
+    o.f = !o.f; if (!o.s) o.s = '+';
+  } else if (b.dataset.q !== undefined) {
+    o.q = !o.q; if (!o.s) o.s = '+';
   }
+  if (o.s === '-' || o.s === 's' || o.s === '') { o.f = false; o.q = false; }
+  saveQF();
   att.dirty = true;
   drawAtt();
 });
 $('#search').oninput = () => att && drawAtt();
 $('#allHere').onclick = () => { if (!att) return; att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); att.dirty = true; drawAtt(); };
-$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; }); att.dirty = true; drawAtt(); };
+$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; o.f = false; o.q = false; }); saveQF(); att.dirty = true; drawAtt(); };
 
 function counts() {
   const c = { '+': 0, '-': 0, s: 0, k: 0, d: 0, e: 0 };
-  att.oquvchilar.forEach(o => { if (o.s) c[o.s]++; else c.e++; if (o.d) c.d++; });
+  att.oquvchilar.forEach(o => { if (o.s) c[o.s]++; else c.e++; if (o.d) c.d++; if (o.f) c.f = (c.f || 0) + 1; if (o.q) c.q = (c.q || 0) + 1; });
   $('#counts').innerHTML =
     `<span style="background:var(--ok-soft);color:var(--ok)">+ ${c['+']}</span>` +
     `<span style="background:var(--no-soft);color:var(--no)">− ${c['-']}</span>` +
     (c.s ? `<span style="background:var(--sab-soft);color:var(--sab)">S ${c.s}</span>` : '') +
     (c.k ? `<span style="background:var(--late-soft);color:var(--late)">K ${c.k}</span>` : '') +
     (c.d ? `<span style="background:var(--daf-soft);color:var(--daf)">Daftarsiz ${c.d}</span>` : '') +
-    (c.e ? `<span style="background:var(--bg);color:var(--muted)">Belgilanmagan ${c.e}</span>` : '');
+    (c.e ? `<span style="background:var(--bg);color:var(--muted)">Belgilanmagan ${c.e}</span>` : '') +
+    (c.f ? `<span style="background:#fff3e0;color:#ef6c00">Formasiz ${c.f}</span>` : '') +
+    (c.q ? `<span style="background:#fff3e0;color:#ef6c00">Qurolsiz ${c.q}</span>` : '');
   $('#saveBtn').textContent = att.dirty ? 'Saqlash' : 'Saqlangan ✓';
 }
 
@@ -540,7 +555,7 @@ $('#saveBtn').onclick = async () => {
     await api('save', job);
     removePending(job);
     att.dirty = false; toast("Google Sheets'ga yozildi ✓");
-    if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)));
+    if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)), att.foto);
     LS.del('overview');
     $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
   } catch (e) {
@@ -577,42 +592,77 @@ $('#tgBtn').onclick = async () => {
   c.chat = ch.trim(); LS.set('tg', c);
   toast(c.token && c.chat ? 'Telegram sozlandi ✓' : 'Telegram sozlamasi tozalandi');
 };
-$('#tgSend').onclick = () => { if (att) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o))); };
+$('#tgSend').onclick = () => { if (att) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)), att.foto); };
+// Forma / o'quv quroli belgilari shu qurilmada saqlanadi (guruh|sana bo'yicha)
+function saveQF() { if (!att || !KUNLIK[att.guruh]) return; const qf = {}; att.oquvchilar.forEach(o => { if (o.f || o.q) qf[o.r] = { f: !!o.f, q: !!o.q }; }); LS.set('qf|' + att.guruh + '|' + att.sana, qf); }
+// Guruh rasmi (1 ta) — davomat bilan birga yuboriladi
+function setFoto(f) { if (att) att.foto = f || null; const b = $('#fotoBtn'); b.classList.toggle('on', !!f); b.textContent = f ? '📷 Rasm qo\'shildi ✓' : '📷 Guruh rasmi'; }
+$('#fotoBtn').onclick = () => { if (att && att.foto && confirm('Rasm olib tashlansinmi?')) { setFoto(null); return; } $('#fotoInp').value = ''; $('#fotoInp').click(); };
+$('#fotoInp').onchange = e => { const f = e.target.files[0]; if (f) { setFoto(f); toast('Rasm qo\'shildi — davomat bilan birga yuboriladi'); } };
 
 function tgRasm(g, date, list) {
   const kel = list.filter(o => o.s === '+' || o.s === 'k'), yoq = list.filter(o => o.s === '-'), sab = list.filter(o => o.s === 's'), kech = list.filter(o => o.s === 'k');
   const nm = o => o.name.split(' ').slice(0, 2).join(' ');
-  const absent = yoq.map(o => ['−', nm(o), '#e53935']).concat(sab.map(o => ['S', nm(o) + ' (sababli)', '#1e88e5'])).concat(kech.map(o => ['K', nm(o) + ' (kechikdi)', '#f9a825']));
-  const W = 1080, H = 560 + Math.max(1, absent.length) * 54;
+  const forma = list.filter(o => o.f && (o.s === '+' || o.s === 'k')), qurol = list.filter(o => o.q && (o.s === '+' || o.s === 'k'));
+  const RH = 58, T0 = 500;
+  const W = 1080, H = T0 + list.length * RH + 70;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d');
+  const F = (w, z) => x.font = (w ? 'bold ' : '') + z + 'px system-ui,Segoe UI,Arial';
   x.fillStyle = '#f4f6fb'; x.fillRect(0, 0, W, H);
   x.fillStyle = '#3d5afe'; x.fillRect(0, 0, W, 170);
-  x.fillStyle = '#fff'; x.font = 'bold 54px system-ui,Segoe UI,Arial'; x.fillText(g.split(' ')[0] + ' guruh — davomat', 60, 85);
+  x.fillStyle = '#fff'; F(1, 54); x.fillText(g.split(' ')[0] + ' guruh — davomat', 60, 85);
   const d = parseD(date);
-  x.font = '32px system-ui,Segoe UI,Arial'; x.fillText(KUN[d.getDay()] + ', ' + d.getDate() + '-' + OY[d.getMonth()] + ' ' + d.getFullYear() + ' · ' + KUNLIK[g].para, 60, 140);
-  const box = (bx, label, val, col) => {
-    x.fillStyle = '#fff'; x.beginPath(); x.roundRect(bx, 210, 300, 190, 28); x.fill();
-    x.fillStyle = col; x.font = 'bold 96px system-ui,Segoe UI,Arial'; x.textAlign = 'center'; x.fillText(val, bx + 150, 320);
-    x.fillStyle = '#5b6275'; x.font = '30px system-ui,Segoe UI,Arial'; x.fillText(label, bx + 150, 375); x.textAlign = 'left';
+  F(0, 32); x.fillText(KUN[d.getDay()] + ', ' + d.getDate() + '-' + OY[d.getMonth()] + ' ' + d.getFullYear() + ' · ' + KUNLIK[g].para, 60, 140);
+  const box = (bx, w, label, val, col) => {
+    x.fillStyle = '#fff'; x.beginPath(); x.roundRect(bx, 200, w, 170, 24); x.fill();
+    x.fillStyle = col; F(1, 80); x.textAlign = 'center'; x.fillText(val, bx + w / 2, 300);
+    x.fillStyle = '#5b6275'; F(0, 26); x.fillText(label, bx + w / 2, 345); x.textAlign = 'left';
   };
-  box(60, 'Jami', list.length, '#151827'); box(390, 'Keldi', kel.length, '#2e7d32'); box(720, 'Kelmadi', yoq.length + sab.length, '#e53935');
-  x.fillStyle = '#151827'; x.font = 'bold 36px system-ui,Segoe UI,Arial';
-  x.fillText(absent.length ? 'Kelmaganlar / kechikkanlar:' : 'Hamma o\'quvchilar keldi ✓', 60, 475);
-  x.font = '32px system-ui,Segoe UI,Arial';
-  absent.forEach((a, i) => { const y = 535 + i * 54; x.fillStyle = a[2]; x.fillText(a[0], 70, y); x.fillStyle = '#151827'; x.fillText((i + 1) + '. ' + a[1], 115, y); });
+  box(40, 235, 'Jami', list.length, '#151827'); box(295, 235, 'Keldi', kel.length, '#2e7d32'); box(550, 235, 'Kelmadi', yoq.length + sab.length, '#e53935');
+  box(805, 235, 'Formasiz / qurolsiz', forma.length + '/' + qurol.length, '#ef6c00');
+  // jadval sarlavhasi
+  const C = { n: 50, nm: 110, st: 640, f: 860, q: 980 };
+  x.fillStyle = '#151827'; F(1, 26);
+  x.fillText('№', C.n, T0 - 40); x.fillText("O'quvchi", C.nm, T0 - 40); x.fillText('Davomat', C.st, T0 - 40);
+  x.textAlign = 'center'; x.fillText('Forma', C.f, T0 - 40); x.fillText('Qurol', C.q, T0 - 40); x.textAlign = 'left';
+  const ST = { '+': ['Keldi', '#2e7d32', '#e8f5e9'], 'k': ['Kechikdi', '#b7791f', '#fff8e1'], '-': ['Kelmadi', '#e53935', '#ffebee'], 's': ['Sababli', '#1e88e5', '#e3f2fd'], '': ['—', '#8a90a2', '#eef0f5'] };
+  list.forEach((o, i) => {
+    const y = T0 + i * RH, st = ST[o.s] || ST[''], here = o.s === '+' || o.s === 'k';
+    x.fillStyle = i % 2 ? '#f4f6fb' : '#fff'; x.fillRect(30, y - 10, W - 60, RH);
+    const cy = y + RH / 2 - 10;
+    x.fillStyle = '#5b6275'; F(0, 26); x.fillText(String(o.n || i + 1), C.n, cy + 9);
+    x.fillStyle = here ? '#151827' : st[1]; F(0, 30); x.fillText(nm(o).slice(0, 30), C.nm, cy + 10);
+    x.fillStyle = st[2]; x.beginPath(); x.roundRect(C.st - 10, cy - 20, 160, 40, 20); x.fill();
+    x.fillStyle = st[1]; F(1, 24); x.textAlign = 'center'; x.fillText(st[0], C.st + 70, cy + 8);
+    F(1, 30);
+    if (here) {
+      x.fillStyle = o.f ? '#e53935' : '#2e7d32'; x.fillText(o.f ? '✗' : '✓', C.f, cy + 10);
+      x.fillStyle = o.q ? '#e53935' : '#2e7d32'; x.fillText(o.q ? '✗' : '✓', C.q, cy + 10);
+    } else { x.fillStyle = '#b0b5c3'; x.fillText('—', C.f, cy + 10); x.fillText('—', C.q, cy + 10); }
+    x.textAlign = 'left';
+  });
+  x.fillStyle = '#8a90a2'; F(0, 22); x.fillText('✓ bor   ✗ yo\'q   · Davomat — Mashrapov Q.', 50, H - 25);
   const cap = g.split(' ')[0] + ' · ' + human(date) + ' · ' + KUNLIK[g].para + '\nJami: ' + list.length + ' | Keldi: ' + kel.length + ' | Kelmadi: ' + (yoq.length + sab.length) +
-    (yoq.length ? '\nKelmadi: ' + yoq.map(nm).join(', ') : '') + (sab.length ? '\nSababli: ' + sab.map(nm).join(', ') : '') + (kech.length ? '\nKechikdi: ' + kech.map(nm).join(', ') : '');
+    (yoq.length ? '\nKelmadi: ' + yoq.map(nm).join(', ') : '') + (sab.length ? '\nSababli: ' + sab.map(nm).join(', ') : '') + (kech.length ? '\nKechikdi: ' + kech.map(nm).join(', ') : '') +
+    (forma.length ? '\nForma yo\'q: ' + forma.map(nm).join(', ') : '') + (qurol.length ? '\nO\'quv quroli yo\'q: ' + qurol.map(nm).join(', ') : '');
   return { cv, cap };
 }
-async function tgYubor(g, date, list) {
+async function tgYubor(g, date, list, foto) {
   const c = tgCfg();
   if (!c.token || !c.chat) { toast("Telegram sozlanmagan — yuqoridagi ✈ tugmasini bosing", 3500); return; }
   try {
     const { cv, cap } = tgRasm(g, date, list);
     const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
-    const fd = new FormData(); fd.append('chat_id', c.chat); fd.append('caption', cap.slice(0, 1000)); fd.append('photo', blob, g + '_' + date + '.png');
-    const j = await (await fetch('https://api.telegram.org/bot' + c.token + '/sendPhoto', { method: 'POST', body: fd })).json();
+    const fd = new FormData(); fd.append('chat_id', c.chat);
+    let method = 'sendPhoto';
+    if (foto) {
+      method = 'sendMediaGroup';
+      fd.append('media', JSON.stringify([{ type: 'photo', media: 'attach://hisobot', caption: cap.slice(0, 1000) }, { type: 'photo', media: 'attach://guruh' }]));
+      fd.append('hisobot', blob, g + '_' + date + '.png'); fd.append('guruh', foto, foto.name || 'guruh.jpg');
+    } else { fd.append('caption', cap.slice(0, 1000)); fd.append('photo', blob, g + '_' + date + '.png'); }
+    toast('Telegramga yuborilmoqda…', 2000);
+    const j = await (await fetch('https://api.telegram.org/bot' + c.token + '/' + method, { method: 'POST', body: fd })).json();
     toast(j.ok ? 'Telegram guruhiga yuborildi ✓' : 'Telegram xatosi: ' + (j.description || ''), 3500);
   } catch (e) { toast("Telegramga yuborib bo'lmadi: " + e.message, 3500); }
 }
