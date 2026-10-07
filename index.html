@@ -311,6 +311,7 @@ th.l{z-index:3}
 <div class="toast" id="toast"></div>
 <div id="bild" class="hide">
   <div class="bar">
+    <button class="btn btn-pri" id="bildDoc" style="background:#2b579a">📝 Word (.docx) yuklab olish</button>
     <button class="btn btn-pri" id="bildPrint">🖨 Chop etish / PDF</button>
     <button class="btn btn-ghost" id="bildClose" style="background:#fff">Yopish</button>
     <label><input type="checkbox" id="bildAuto"> Saqlaganda avtomatik ochilsin</label>
@@ -807,7 +808,7 @@ function showBild(D) {
       <b>Fan:</b><span contenteditable>${esc(fan)}</span>
       <b>O'qituvchi:</b><span contenteditable>${esc(c.oqituvchi)}</span>
     </div>
-    <p contenteditable>Sizga shuni ma'lum qilamanki, ${esc(sanaTxt)} kuni ${juft ? esc(juft) + 'da ' : ''}o'tkazilgan ${esc(fan)}${rh ? 'da' : ' fanidan darsda'} ${esc(gid)} guruhining jami ${D.list.length} nafar o'quvchisidan ${kel.length} nafari qatnashdi, ${absent.length} nafari darsga kelmadi${absent.length ? ' (sababsiz — ' + yoq.length + ', sababli — ' + sab.length + ')' : ''}. Darsga kelmagan o'quvchilar ro'yxati quyidagicha:</p>
+    <p contenteditable>Sizga shuni ma'lum qilamanki, ${esc(sanaTxt)} kuni ${D.juftlik ? esc(D.juftlik) + ' juftlikda' + (D.vaqt ? ' (' + esc(D.vaqt) + ')' : '') + ' ' : ''}o'tkazilgan ${esc(fan)}${rh ? 'da' : ' fanidan darsda'} ${esc(gid)} guruhining jami ${D.list.length} nafar o'quvchisidan ${kel.length} nafari qatnashdi, ${absent.length} nafari darsga kelmadi${absent.length ? ' (sababsiz — ' + yoq.length + ', sababli — ' + sab.length + ')' : ''}. Darsga kelmagan o'quvchilar ro'yxati quyidagicha:</p>
     ${absent.length ? `<table><thead><tr><th>№</th><th>O'quvchining F.I.Sh.</th><th>Holati</th><th>Izoh</th></tr></thead><tbody>${absent.map(row).join('')}</tbody></table>`
       : `<p style="text-indent:0;text-align:center"><i>Barcha o'quvchilar darsga qatnashdi.</i></p>`}
     ${kech.length ? `<p contenteditable>Darsga kechikib kelganlar (${kech.length} nafar): ${esc(kech.map(o => o.name.split(' ').slice(0, 2).join(' ')).join(', '))}.</p>` : ''}
@@ -822,11 +823,91 @@ function showBild(D) {
   k.onblur = () => { const v = k.textContent.trim(); const cfg = LS.get('bildCfg', {}); if (v && v !== BILD_DEF.kimga) cfg.kimga = v; else delete cfg.kimga; LS.set('bildCfg', cfg); };
   $('#bildAuto').checked = bildAuto();
   document.title = 'Bildirgi_' + gid + '_' + D.sana;
+  loadDocx().catch(() => {});
   $('#bild').classList.remove('hide'); $('#bild').scrollTop = 0; document.body.style.overflow = 'hidden';
 }
 function closeBild() { $('#bild').classList.add('hide'); document.title = 'Davomat — Mashrapov Q.'; if ($('#att').classList.contains('hide')) document.body.style.overflow = ''; }
 $('#bildClose').onclick = closeBild;
 $('#bildPrint').onclick = () => window.print();
+/* Bildirgini Word (.docx) faylga chiqarish — docx kutubxonasi kerak bo'lganda yuklanadi */
+let docxLib = null;
+function loadDocx() {
+  if (window.docx) return Promise.resolve(window.docx);
+  if (docxLib) return docxLib;
+  docxLib = new Promise((ok, no) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js';
+    sc.onload = () => ok(window.docx);
+    sc.onerror = () => { docxLib = null; no(new Error("docx kutubxonasini yuklab bo'lmadi (internetni tekshiring)")); };
+    document.head.appendChild(sc);
+  });
+  return docxLib;
+}
+async function bildDocx() {
+  const btn = $('#bildDoc'), old = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Tayyorlanmoqda…';
+  try {
+    const D = await loadDocx();
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ShadingType } = D;
+    const F = 'Times New Roman', SZ = 28;   // 14 pt
+    const T = (t, o = {}) => new TextRun(Object.assign({ text: t, font: F, size: SZ }, o));
+    const txt = el => (el ? el.innerText : '').replace(/\s+/g, ' ').trim();
+    const P = (runs, o = {}) => new Paragraph(Object.assign({ children: Array.isArray(runs) ? runs : [runs], spacing: { after: 120, line: 300 } }, o));
+    const NB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    const noBorders = { top: NB, bottom: NB, left: NB, right: NB, insideHorizontal: NB, insideVertical: NB };
+    const cell = (t, o = {}) => new TableCell({ width: o.w ? { size: o.w, type: WidthType.DXA } : undefined, shading: o.head ? { fill: 'EFEFEF', type: ShadingType.CLEAR, color: 'auto' } : undefined,
+      margins: { top: 60, bottom: 60, left: 100, right: 100 },
+      children: [new Paragraph({ alignment: o.c ? AlignmentType.CENTER : AlignmentType.LEFT, children: [T(t, { bold: !!o.head, size: 26 })] })] });
+    const kids = [];
+    const paper = $('#bildPaper');
+    for (const el of paper.children) {
+      if (el.classList.contains('bto')) {
+        [...el.children].forEach(c => kids.push(P(T(txt(c)), { indent: { left: 5200 }, spacing: { after: 0, line: 300 } })));
+      } else if (el.tagName === 'H1') {
+        kids.push(P(T(txt(el), { bold: true, size: 32, characterSpacing: 120 }), { alignment: AlignmentType.CENTER, spacing: { before: 480, after: 40 } }));
+      } else if (el.classList.contains('bsub')) {
+        kids.push(P(T(txt(el), { italics: true, size: 24 }), { alignment: AlignmentType.CENTER, spacing: { after: 280 } }));
+      } else if (el.classList.contains('binfo')) {
+        const c = [...el.children];
+        const rows = [];
+        for (let i = 0; i + 1 < c.length; i += 2) rows.push(new TableRow({ children: [
+          new TableCell({ width: { size: 2000, type: WidthType.DXA }, borders: noBorders, children: [new Paragraph({ children: [T(txt(c[i]), { bold: true })] })] }),
+          new TableCell({ width: { size: 7355, type: WidthType.DXA }, borders: noBorders, children: [new Paragraph({ children: [T(txt(c[i + 1]))] })] })] }));
+        kids.push(new Table({ width: { size: 9355, type: WidthType.DXA }, columnWidths: [2000, 7355], borders: noBorders, rows }));
+        kids.push(P(T(''), { spacing: { after: 120 } }));
+      } else if (el.tagName === 'P') {
+        const t = txt(el); if (!t) continue;
+        const centered = el.style.textAlign === 'center';
+        kids.push(P(T(t, { italics: centered, color: el.style.color ? 'AA0000' : undefined }), centered ? { alignment: AlignmentType.CENTER } : { alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 709 } }));
+      } else if (el.tagName === 'TABLE') {
+        const W = [700, 4655, 1600, 2400];
+        const rows = [...el.rows].map((r, ri) => new TableRow({ tableHeader: ri === 0, children: [...r.cells].map((c, ci) => cell(txt(c), { head: ri === 0, c: ci !== 1 && ci !== 3 || ri === 0, w: W[ci] })) }));
+        kids.push(new Table({ width: { size: 9355, type: WidthType.DXA }, columnWidths: W, rows }));
+        kids.push(P(T(''), { spacing: { after: 120 } }));
+      } else if (el.classList.contains('bsign')) {
+        const [a, b] = el.children;
+        const who = txt(a).split(':');
+        kids.push(P(T(''), { spacing: { before: 360 } }));
+        kids.push(new Table({ width: { size: 9355, type: WidthType.DXA }, columnWidths: [6855, 2500], borders: noBorders, rows: [new TableRow({ children: [
+          new TableCell({ width: { size: 6855, type: WidthType.DXA }, borders: noBorders, children: [new Paragraph({ children: [T(who[0] + ':  '), T('____________________  '), T(who.slice(1).join(':').trim())] })] }),
+          new TableCell({ width: { size: 2500, type: WidthType.DXA }, borders: noBorders, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [T(txt(b))] })] })] })] }));
+      } else if (el.classList.contains('bfoot')) {
+        kids.push(P([T(txt(el) + '  ', { size: 26 }), T('____________________', { size: 26 })], { spacing: { before: 400 } }));
+      }
+    }
+    const doc = new Document({ creator: 'Davomat — Mashrapov Q.', title: document.title,
+      styles: { default: { document: { run: { font: F, size: SZ } } } },
+      sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1701, right: 850 } } }, children: kids }] });
+    const blob = await Packer.toBlob(doc);
+    const name = (document.title.startsWith('Bildirgi') ? document.title : 'Bildirgi') + '.docx';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Word fayl yuklab olindi ✓ — ' + name, 3000);
+  } catch (e) { toast("Word fayl tayyorlab bo'lmadi: " + e.message, 4000); }
+  finally { btn.disabled = false; btn.textContent = old; }
+}
+$('#bildDoc').onclick = bildDocx;
+
 $('#bildAuto').onchange = e => { LS.set('bildAuto', e.target.checked); toast(e.target.checked ? "Bildirgi saqlaganda avtomatik ochiladi" : "Avtomatik bildirgi o'chirildi"); };
 $('#bildBtn').onclick = () => { if (att) showBild(bildData(att.guruh, att.sana, att.oquvchilar)); };
 window.addEventListener('afterprint', () => { if (!$('#bild').classList.contains('hide')) document.title = 'Davomat — Mashrapov Q.'; });
