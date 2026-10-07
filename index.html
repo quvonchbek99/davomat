@@ -191,6 +191,38 @@ th.l{z-index:3}
 @keyframes sh{to{background-position:-200% 0}}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+/* ---------- BILDIRGI ---------- */
+#bild{position:fixed;inset:0;z-index:60;background:rgba(15,18,35,.55);overflow:auto;padding:16px 12px 120px}
+#bild .bar{max-width:794px;margin:0 auto 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#bild .bar .btn{padding:9px 14px;font-size:13px}
+#bild .bar label{color:#fff;font-size:13px;display:flex;align-items:center;gap:6px;margin-left:auto}
+.bpaper{max-width:794px;margin:0 auto;background:#fff;color:#111;padding:56px 60px 48px;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-family:"Times New Roman",Times,serif;font-size:15px;line-height:1.5}
+.bpaper [contenteditable]{outline:none;border-radius:3px}
+.bpaper [contenteditable]:hover{background:#fffbe6}
+.bpaper .bto{margin-left:auto;width:min(330px,100%);text-align:left;font-size:15px}
+.bpaper h1{text-align:center;font-size:22px;letter-spacing:6px;margin:30px 0 4px;font-family:inherit}
+.bpaper .bsub{text-align:center;font-size:13px;color:#444;margin-bottom:20px}
+.bpaper p{text-indent:36px;text-align:justify;margin:0 0 12px}
+.bpaper table{width:100%;border-collapse:collapse;margin:10px 0 14px;font-size:14px}
+.bpaper th,.bpaper td{border:1px solid #222;padding:5px 8px;text-align:left}
+.bpaper th{background:#f1f1f1;text-align:center;color:#111;font-size:14px;font-weight:700;text-transform:none;letter-spacing:0}
+.bpaper td.c{text-align:center;width:42px}
+.bpaper .binfo{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;margin:0 0 14px;font-size:14px}
+.bpaper .binfo b{font-weight:700}
+.bpaper .bsign{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-top:40px;flex-wrap:wrap}
+.bpaper .bsign .ln{display:inline-block;width:150px;border-bottom:1px solid #111;margin:0 8px}
+.bpaper .bfoot{margin-top:26px;font-size:13px;color:#333}
+@media (max-width:600px){.bpaper{padding:28px 20px;font-size:14px}.bpaper p{text-indent:20px}}
+@media print{
+  @page{size:A4;margin:16mm}
+  html,body{background:#fff!important}
+  body>*:not(#bild){display:none!important}
+  #bild{position:static;background:none;padding:0;overflow:visible}
+  #bild .bar{display:none}
+  .bpaper{box-shadow:none;border-radius:0;padding:0;max-width:none}
+  .bpaper [contenteditable]:hover{background:none}
+}
 </style>
 </head>
 <body>
@@ -257,6 +289,7 @@ th.l{z-index:3}
       <button class="btn btn-ghost hide" id="fotoBtn" style="background:#f3e5f5;color:#8e24aa">📷 Guruh rasmi</button>
       <input type="file" id="fotoInp" accept="image/*" class="hide">
       <button class="btn btn-ghost hide" id="tgSend" style="background:#e3f2fd;color:#1e88e5">Telegramga</button>
+      <button class="btn btn-ghost" id="bildBtn" style="background:#fff1d6;color:#b45309">📄 Bildirgi</button>
       <button class="btn btn-ghost" id="clearAll" style="background:var(--bg);color:var(--muted)">Tozalash</button>
       <input class="search" id="search" placeholder="Qidirish…">
     </div>
@@ -276,6 +309,14 @@ th.l{z-index:3}
 </section>
 
 <div class="toast" id="toast"></div>
+<div id="bild" class="hide">
+  <div class="bar">
+    <button class="btn btn-pri" id="bildPrint">🖨 Chop etish / PDF</button>
+    <button class="btn btn-ghost" id="bildClose" style="background:#fff">Yopish</button>
+    <label><input type="checkbox" id="bildAuto"> Saqlaganda avtomatik ochilsin</label>
+  </div>
+  <div class="bpaper" id="bildPaper"></div>
+</div>
 
 <script>
 /* =============================================================
@@ -614,8 +655,10 @@ $('#saveBtn').onclick = () => {
   att.dirty = false;
   toast("Saqlandi ✓ — Google Sheets'ga fonda yuborilmoqda", 2500);
   if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)), att.foto);
+  const bd = bildData(att.guruh, att.sana, att.oquvchilar);
   LS.del('overview');
   $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
+  if (bildAuto() && bd.list.some(o => o.s === '-' || o.s === 's')) showBild(bd);
   flushPending();
 };
 
@@ -726,6 +769,67 @@ async function tgYubor(g, date, list, foto) {
     toast(!xato.length ? (chats.length > 1 ? chats.length + ' ta guruhga yuborildi ✓' : 'Telegram guruhiga yuborildi ✓') : 'Telegram xatosi: ' + xato.join('; '), 4500);
   } catch (e) { toast("Telegramga yuborib bo'lmadi: " + e.message, 3500); }
 }
+
+
+/* ---------- BILDIRGI (darsga kelmaganlar) ---------- */
+const BILD_DEF = {
+  kimga: "Toshkent tuman 1-son texnikumi direktori D.Shermuhammedovga",
+  kimdan: "Matematika fani o'qituvchisi Mashrapov Q. tomonidan",
+  oqituvchi: 'Mashrapov Q.'
+};
+function bildCfg() { return Object.assign({}, BILD_DEF, LS.get('bildCfg', {})); }
+function bildAuto() { return LS.get('bildAuto', true); }
+function bildData(g, date, list) {
+  const l = (INIT && INIT.jadval ? lessonsFor(date) : []).find(x => x.guruh === g) || {};
+  const gi = (INIT && INIT.guruhlar || []).find(x => x.id === g) || {};
+  return { guruh: g, sana: date, list: list.map(o => Object.assign({}, o)), juftlik: l.juftlik || (KUNLIK[g] ? KUNLIK[g].para.split(' ')[0] : ''), vaqt: l.vaqt || '', xona: l.xona || '', nomi: l.nomi || gi.nomi || '' };
+}
+function showBild(D) {
+  const c = bildCfg(), d = parseD(D.sana), rh = !!KUNLIK[D.guruh];
+  const gid = D.guruh.split(' ')[0];
+  const yoq = D.list.filter(o => o.s === '-'), sab = D.list.filter(o => o.s === 's'), kech = D.list.filter(o => o.s === 'k');
+  const bel = D.list.filter(o => !o.s), kel = D.list.filter(o => o.s === '+' || o.s === 'k');
+  const absent = yoq.concat(sab).sort((a, b) => (+a.n || 0) - (+b.n || 0));
+  const sanaTxt = d.getFullYear() + '-yil ' + d.getDate() + '-' + OY[d.getMonth()];
+  const sanaNum = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
+  const juft = D.juftlik ? D.juftlik + ' juftlik' + (D.vaqt ? ' (' + D.vaqt + ')' : '') : '';
+  const fan = rh ? 'guruh rahbari soati' : 'Matematika';
+  const kimdan = rh ? gid + ' guruh rahbari ' + c.oqituvchi + ' tomonidan' : c.kimdan;
+  const row = (o, i) => `<tr><td class="c">${i + 1}</td><td contenteditable>${esc(o.name)}</td><td class="c" style="width:auto">${o.s === 's' ? 'Sababli' : 'Sababsiz'}</td><td contenteditable style="width:28%"></td></tr>`;
+  $('#bildPaper').innerHTML = `
+    <div class="bto"><div contenteditable data-k="kimga">${esc(c.kimga)}</div><div contenteditable>${esc(kimdan)}</div></div>
+    <h1>BILDIRGI</h1>
+    <div class="bsub">darsga kelmagan o'quvchilar to'g'risida</div>
+    <div class="binfo">
+      <b>Sana:</b><span contenteditable>${esc(sanaNum)} (${esc(KUN[d.getDay()].toLowerCase())})</span>
+      <b>Dars soati:</b><span contenteditable>${esc(juft || '—')}${D.xona ? ', ' + esc(D.xona) : ''}</span>
+      <b>Guruh:</b><span contenteditable>${esc(gid)}${D.nomi && !/Guruh rahbari/i.test(D.nomi) ? ' — ' + esc(D.nomi) : ''}</span>
+      <b>Fan:</b><span contenteditable>${esc(fan)}</span>
+      <b>O'qituvchi:</b><span contenteditable>${esc(c.oqituvchi)}</span>
+    </div>
+    <p contenteditable>Sizga shuni ma'lum qilamanki, ${esc(sanaTxt)} kuni ${juft ? esc(juft) + 'da ' : ''}o'tkazilgan ${esc(fan)}${rh ? 'da' : ' fanidan darsda'} ${esc(gid)} guruhining jami ${D.list.length} nafar o'quvchisidan ${kel.length} nafari qatnashdi, ${absent.length} nafari darsga kelmadi${absent.length ? ' (sababsiz — ' + yoq.length + ', sababli — ' + sab.length + ')' : ''}. Darsga kelmagan o'quvchilar ro'yxati quyidagicha:</p>
+    ${absent.length ? `<table><thead><tr><th>№</th><th>O'quvchining F.I.Sh.</th><th>Holati</th><th>Izoh</th></tr></thead><tbody>${absent.map(row).join('')}</tbody></table>`
+      : `<p style="text-indent:0;text-align:center"><i>Barcha o'quvchilar darsga qatnashdi.</i></p>`}
+    ${kech.length ? `<p contenteditable>Darsga kechikib kelganlar (${kech.length} nafar): ${esc(kech.map(o => o.name.split(' ').slice(0, 2).join(' ')).join(', '))}.</p>` : ''}
+    ${bel.length ? `<p contenteditable style="color:#a00">Belgilanmagan o'quvchilar: ${bel.length} nafar.</p>` : ''}
+    <p contenteditable>Yuqoridagi o'quvchilar bo'yicha tegishli choralar ko'rishingizni so'rayman.</p>
+    <div class="bsign">
+      <div contenteditable>${rh ? 'Guruh rahbari' : "Fan o'qituvchisi"}:<span class="ln"></span>${esc(c.oqituvchi)}</div>
+      <div contenteditable>${esc(sanaNum)}</div>
+    </div>
+    <div class="bfoot" contenteditable>Tanishdim: ${rh ? "Direktorning tarbiyaviy ishlar bo'yicha o'rinbosari" : "Guruh rahbari"} <span class="ln" style="display:inline-block;width:150px;border-bottom:1px solid #111;margin:0 8px"></span></div>`;
+  const k = $('#bildPaper [data-k="kimga"]');
+  k.onblur = () => { const v = k.textContent.trim(); const cfg = LS.get('bildCfg', {}); if (v && v !== BILD_DEF.kimga) cfg.kimga = v; else delete cfg.kimga; LS.set('bildCfg', cfg); };
+  $('#bildAuto').checked = bildAuto();
+  document.title = 'Bildirgi_' + gid + '_' + D.sana;
+  $('#bild').classList.remove('hide'); $('#bild').scrollTop = 0; document.body.style.overflow = 'hidden';
+}
+function closeBild() { $('#bild').classList.add('hide'); document.title = 'Davomat — Mashrapov Q.'; if ($('#att').classList.contains('hide')) document.body.style.overflow = ''; }
+$('#bildClose').onclick = closeBild;
+$('#bildPrint').onclick = () => window.print();
+$('#bildAuto').onchange = e => { LS.set('bildAuto', e.target.checked); toast(e.target.checked ? "Bildirgi saqlaganda avtomatik ochiladi" : "Avtomatik bildirgi o'chirildi"); };
+$('#bildBtn').onclick = () => { if (att) showBild(bildData(att.guruh, att.sana, att.oquvchilar)); };
+window.addEventListener('afterprint', () => { if (!$('#bild').classList.contains('hide')) document.title = 'Davomat — Mashrapov Q.'; });
 
 /* ---------- OFFLINE NAVBAT ---------- */
 function addPending(job) { const p = LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date)); p.push(job); LS.set('pending', p); pendBadge(); }
