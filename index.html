@@ -157,6 +157,9 @@ th.l{z-index:3}
 .seltabs{display:flex;background:var(--card);border-radius:12px;padding:3px;box-shadow:var(--shadow);margin-bottom:12px;width:max-content}
 .seltabs button{padding:8px 14px;border-radius:9px;font-weight:700;font-size:13px;color:var(--muted)}
 .seltabs button.on{background:var(--pri-soft);color:var(--pri)}
+.perbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.perbar select,.perbar input[type=date]{height:38px;padding:0 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:700;font-size:13px;box-shadow:var(--shadow)}
+.perbar select.on,.perbar input.on{border-color:var(--pri);color:var(--pri);background:var(--pri-soft)}
 
 /* ---------- schedule ---------- */
 .week{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
@@ -945,53 +948,153 @@ window.addEventListener('online', flushPending);
 
 /* ---------- NATIJALAR ---------- */
 let repGroup = null, repMode = 'jami';
+let repPer = LS.get('repPer', 'jami');   // 'jami' | 'sem1' | 'sem2' | 'oy:M' (M = 1..12) | 'kun:YYYY-MM-DD'
+const OYK = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun', 'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
+// Sana satrini (dd.mm, dd.mm.yyyy yoki yyyy-mm-dd) Date ga aylantirish; yil o'quv yilidan aniqlanadi
+function repDate(s) {
+  s = String(s || '').trim(); let m;
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))) return new Date(+m[1], m[2] - 1, +m[3]);
+  if ((m = /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/.exec(s))) {
+    let y = m[3] ? +m[3] : 0; if (y && y < 100) y += 2000;
+    if (!y) { const t = parseD(todayStr()), y0 = t.getMonth() >= 7 ? t.getFullYear() : t.getFullYear() - 1; y = +m[2] >= 8 ? y0 : y0 + 1; }
+    return new Date(y, m[2] - 1, +m[1]);
+  }
+  return null;
+}
+function perMatch(d, per) {
+  if (!d) return per === 'jami';
+  const M = d.getMonth() + 1;
+  if (per === 'jami') return true;
+  if (per === 'sem1') return M >= 8 || M === 1;
+  if (per === 'sem2') return M >= 2 && M <= 7;
+  if (per.startsWith('oy:')) return M === +per.slice(3);
+  if (per.startsWith('kun:')) return fmtD(d) === per.slice(4);
+  return true;
+}
+function perName(per) {
+  if (per === 'jami') return "Butun o'quv yili"; if (per === 'sem1') return '1-semestr'; if (per === 'sem2') return '2-semestr';
+  if (per.startsWith('oy:')) { const m = +per.slice(3); return OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1) + ' oyi'; }
+  if (per.startsWith('kun:')) return human(per.slice(4));
+  return per;
+}
+// Hisobotni tanlangan davr bo'yicha qayta hisoblash
+function repFilter(j, per) {
+  const idx = j.sanalar.map((s, i) => perMatch(repDate(s), per) ? i : -1).filter(i => i >= 0);
+  const S = j.oquvchilar.map(o => {
+    if (per === 'jami' || !o.belgilar) return Object.assign({}, o, { belgilar: o.belgilar || [] });
+    const st = { keldi: 0, kelmadi: 0, sababli: 0, kechikdi: 0, daftarsiz: 0, bahoSoni: 0 }; let sum = 0;
+    const bel = idx.map(i => o.belgilar[i] || ['', '']);
+    bel.forEach(([c, b]) => { c = String(c || ''); const k = { '+': 'keldi', '-': 'kelmadi', s: 'sababli', k: 'kechikdi' }[c.replace('d', '')]; if (k) st[k]++; if (c.includes('d')) st.daftarsiz++; if (b !== '' && b != null && !isNaN(+b)) { st.bahoSoni++; sum += +b; } });
+    return Object.assign({}, o, st, { ortacha: st.bahoSoni ? Math.round(sum / st.bahoSoni * 10) / 10 : null, belgilar: bel });
+  });
+  return { sanalar: idx.map(i => j.sanalar[i]), oquvchilar: S };
+}
+function repSum(S) {
+  return S.reduce((a, o) => { a.k += o.keldi + o.kechikdi; a.all += o.keldi + o.kechikdi + o.kelmadi + o.sababli; a.yoq += o.kelmadi; a.sab += o.sababli; a.kech += o.kechikdi; a.f += o.daftarsiz; a.n += o.bahoSoni; a.sum += (o.ortacha || 0) * o.bahoSoni; return a; }, { k: 0, all: 0, yoq: 0, sab: 0, kech: 0, f: 0, n: 0, sum: 0 });
+}
+const pct = t => t.all ? Math.round(t.k / t.all * 1000) / 10 : null;
+const avgB = t => t.n ? Math.round(t.sum / t.n * 10) / 10 : null;
+// Davr tanlash paneli
+function perBar(months) {
+  const b = (v, t) => `<button data-per="${v}" class="${repPer === v ? 'on' : ''}">${t}</button>`;
+  const ms = months && months.length ? months : [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
+  const isOy = repPer.startsWith('oy:'), isKun = repPer.startsWith('kun:');
+  return `<div class="perbar"><div class="seltabs" style="margin:0">${b('jami', 'Yillik')}${b('sem1', '1-semestr')}${b('sem2', '2-semestr')}</div>
+    <select id="perOy" class="${isOy ? 'on' : ''}"><option value="">Oylik…</option>${ms.map(m => `<option value="oy:${m}" ${repPer === 'oy:' + m ? 'selected' : ''}>${OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1)}</option>`).join('')}</select>
+    <input type="date" id="perKun" class="${isKun ? 'on' : ''}" value="${isKun ? repPer.slice(4) : ''}" title="Kunlik"></div>`;
+}
+function bindPer(box) {
+  const set = v => { if (!v) return; repPer = v; LS.set('repPer', v); renderReport(); };
+  box.querySelectorAll('[data-per]').forEach(b => b.onclick = () => set(b.dataset.per));
+  const o = box.querySelector('#perOy'); if (o) o.onchange = () => set(o.value);
+  const k = box.querySelector('#perKun'); if (k) k.onchange = () => set(k.value ? 'kun:' + k.value : '');
+}
+// Guruh hisobotlarini keshlash (davr bo'yicha umumiy ko'rinish uchun)
+const repCache = {};
+async function getRep(g, fresh) {
+  if (!fresh && repCache[g]) return repCache[g];
+  const j = await api('report', { group: g });
+  repCache[g] = j; LS.set('rep|' + g, j); return j;
+}
 async function renderReport() {
   const box = $('#v-report');
   if (!repGroup) {
+    const myPer = repPer;
     const draw = ov => {
-      let h = '<h2 class="sec">Barcha guruhlar</h2>';
-      if (!ov) { box.innerHTML = h + '<div class="sk"></div><div class="sk"></div>'; return; }
+      let h = `<h2 class="sec">Barcha guruhlar — ${esc(perName(repPer))}</h2>` + perBar();
+      if (!ov) { box.innerHTML = h + '<div class="sk"></div><div class="sk"></div>'; bindPer(box); return; }
       const tot = ov.reduce((a, o) => ({ s: a.s + o.oquvchiSoni, d: a.d + o.darslar, f: a.f + o.daftarsiz }), { s: 0, d: 0, f: 0 });
       const dv = ov.filter(o => o.davomat !== null), avg = dv.length ? Math.round(dv.reduce((a, o) => a + o.davomat, 0) / dv.length * 10) / 10 : '—';
       h += `<div class="stats"><div class="stat"><b>${tot.s}</b><span>O'quvchilar</span></div><div class="stat"><b>${tot.d}</b><span>O'tilgan darslar</span></div>
-        <div class="stat"><b>${avg}%</b><span>O'rtacha davomat</span></div><div class="stat"><b>${tot.f}</b><span>Daftar yo'q (jami)</span></div></div><div class="grid">`;
+        <div class="stat"><b>${avg}%</b><span>O'rtacha davomat</span></div><div class="stat"><b>${tot.f}</b><span>Daftar yo'q</span></div></div><div class="grid">`;
       h += ov.map(o => `<button class="gcard" data-g="${esc(o.guruh)}"><div class="id">${esc(o.guruh)}</div><div class="nm">${esc(o.nomi)}</div>
         <div class="bar"><i style="width:${o.davomat ?? 0}%"></i></div>
         <div class="kv"><span>Davomat</span><b>${o.davomat ?? '—'}%</b></div><div class="kv"><span>O'rtacha baho</span><b>${o.ortacha ?? '—'}</b></div>
-        <div class="kv"><span>Darslar</span><b>${o.darslar}</b></div><div class="kv"><span>Daftarsiz</span><b>${o.daftarsiz}</b></div></button>`).join('') + '</div>';
+        <div class="kv"><span>Darslar</span><b>${o.darslar}</b></div>${o.kelmadi !== undefined ? `<div class="kv"><span>Kelmadi / sababli</span><b>${o.kelmadi} / ${o.sababli}</b></div>` : ''}<div class="kv"><span>Daftarsiz</span><b>${o.daftarsiz}</b></div></button>`).join('') + '</div>';
       box.innerHTML = h;
+      bindPer(box);
       box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { repGroup = b.dataset.g; renderReport(); });
     };
-    draw(LS.get('overview', null));
-    try { const j = await api('overview'); LS.set('overview', j.guruhlar); if (curView === 'report' && !repGroup) draw(j.guruhlar); } catch (e) { toast(e.message); }
+    if (repPer === 'jami') {
+      draw(LS.get('overview', null));
+      try { const j = await api('overview'); LS.set('overview', j.guruhlar); if (curView === 'report' && !repGroup && repPer === myPer) draw(j.guruhlar); } catch (e) { toast(e.message); }
+      return;
+    }
+    // Davr tanlangan: har bir guruh hisobotini olib, shu davr bo'yicha hisoblaymiz
+    const base = LS.get('overview', null) || INIT.guruhlar.map(g => ({ guruh: g.id, nomi: g.nomi, oquvchiSoni: 0 }));
+    const calc = () => base.map(o => {
+      const j = repCache[o.guruh] || LS.get('rep|' + o.guruh, null);
+      if (!j) return Object.assign({}, o, { davomat: null, ortacha: null, darslar: '…', daftarsiz: '…' });
+      const f = repFilter(j, repPer), t = repSum(f.oquvchilar);
+      return { guruh: o.guruh, nomi: o.nomi, oquvchiSoni: j.oquvchilar.length, darslar: f.sanalar.length, davomat: pct(t), ortacha: avgB(t), daftarsiz: t.f, kelmadi: t.yoq, sababli: t.sab };
+    });
+    draw(calc());
+    const gs = base.map(o => o.guruh);
+    let i = 0;
+    const worker = async () => { while (i < gs.length) { const g = gs[i++]; try { await getRep(g, true); } catch (e) { } if (curView === 'report' && !repGroup && repPer === myPer) draw(calc()); } };
+    await Promise.all([worker(), worker(), worker(), worker()]);
     return;
   }
   const gi = INIT.guruhlar.find(x => x.id === repGroup) || {};
-  box.innerHTML = `<button class="btn btn-ghost" id="repBack" style="margin-top:4px">← Barcha guruhlar</button><div class="spin"></div>`;
-  $('#repBack').onclick = () => { repGroup = null; renderReport(); };
-  try {
-    const j = await api('report', { group: repGroup });
-    const S = j.oquvchilar;
-    const tot = S.reduce((a, o) => { a.k += o.keldi + o.kechikdi; a.all += o.keldi + o.kechikdi + o.kelmadi + o.sababli; a.f += o.daftarsiz; a.n += o.bahoSoni; a.sum += (o.ortacha || 0) * o.bahoSoni; return a; }, { k: 0, all: 0, f: 0, n: 0, sum: 0 });
+  const myG = repGroup, myPer = repPer;
+  const drawG = j0 => {
+    const j = repFilter(j0, repPer), S = j.oquvchilar, tot = repSum(S);
+    const months = [...new Set(j0.sanalar.map(s => { const d = repDate(s); return d ? d.getMonth() + 1 : null; }).filter(Boolean))];
     let h = `<div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px"><button class="btn btn-ghost" id="repBack">←</button>
       <div><div style="font-weight:800;font-size:20px">${esc(repGroup)} guruh</div><div class="small">${esc(gi.nomi || '')}</div></div><div class="sp"></div>
       ${gi.url ? `<a class="btn btn-ghost" href="${esc(gi.url)}" target="_blank" rel="noopener">Sheets</a>` : ''}</div>
+      ${perBar(months)}
+      <div class="small" style="margin:-4px 0 10px">Davr: <b>${esc(perName(repPer))}</b></div>
       <div class="stats"><div class="stat"><b>${S.length}</b><span>O'quvchilar</span></div><div class="stat"><b>${j.sanalar.length}</b><span>Darslar</span></div>
-      <div class="stat"><b>${tot.all ? Math.round(tot.k / tot.all * 1000) / 10 : '—'}%</b><span>Davomat</span></div><div class="stat"><b>${tot.n ? Math.round(tot.sum / tot.n * 10) / 10 : '—'}</b><span>O'rtacha baho</span></div></div>
+      <div class="stat"><b>${pct(tot) ?? '—'}%</b><span>Davomat</span></div><div class="stat"><b>${avgB(tot) ?? '—'}</b><span>O'rtacha baho</span></div>
+      <div class="stat"><b style="color:var(--no)">${tot.yoq}</b><span>Kelmadi (sababsiz)</span></div><div class="stat"><b style="color:var(--sab)">${tot.sab}</b><span>Sababli</span></div>
+      <div class="stat"><b style="color:var(--late)">${tot.kech}</b><span>Kechikdi</span></div><div class="stat"><b style="color:var(--daf)">${tot.f}</b><span>Daftar yo'q</span></div></div>
       <div class="seltabs"><button data-m="jami" class="${repMode === 'jami' ? 'on' : ''}">Jami</button><button data-m="kunlar" class="${repMode === 'kunlar' ? 'on' : ''}">Kunlar bo'yicha</button></div>`;
-    if (repMode === 'jami') {
+    if (!j.sanalar.length) h += `<div class="empty"><b>Bu davrda dars yo'q</b>Boshqa davrni tanlang</div>`;
+    else if (repMode === 'jami') {
       h += `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th><th>Keldi</th><th>Kelmadi</th><th>Sababli</th><th>Kechikdi</th><th>Daftar yo'q</th><th>O'rtacha</th><th>%</th></tr></thead><tbody>` +
         S.map(o => { const all = o.keldi + o.kechikdi + o.kelmadi + o.sababli; const p = all ? Math.round((o.keldi + o.kechikdi) / all * 100) : '—';
           return `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td><td class="c-ok">${o.keldi}</td><td class="${o.kelmadi ? 'c-no' : ''}">${o.kelmadi}</td><td class="${o.sababli ? 'c-s' : ''}">${o.sababli}</td><td class="${o.kechikdi ? 'c-k' : ''}">${o.kechikdi}</td><td class="${o.daftarsiz ? 'c-d' : ''}">${o.daftarsiz}</td><td><b>${o.ortacha ?? '—'}</b></td><td>${p}${p === '—' ? '' : '%'}</td></tr>`; }).join('') + '</tbody></table></div>';
     } else {
-      const cell = ([s, b]) => { const c = { '+': 'c-ok', '-': 'c-no', 's': 'c-s', 'k': 'c-k' }[s.replace('d', '')] || ''; return `<td class="${s.includes('d') ? 'c-d' : c}">${esc(s.replace('-', '−'))}${b !== '' ? ' <b style="color:var(--ink)">' + esc(b) + '</b>' : ''}</td>`; };
+      const cell = ([s, b]) => { s = String(s || ''); const c = { '+': 'c-ok', '-': 'c-no', 's': 'c-s', 'k': 'c-k' }[s.replace('d', '')] || ''; return `<td class="${s.includes('d') ? 'c-d' : c}">${esc(s.replace('-', '−'))}${b !== '' && b != null ? ' <b style="color:var(--ink)">' + esc(b) + '</b>' : ''}</td>`; };
       h += `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th>${j.sanalar.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>` +
         S.map(o => `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>${o.belgilar.map(cell).join('')}</tr>`).join('') + '</tbody></table></div>';
     }
     box.innerHTML = h;
     $('#repBack').onclick = () => { repGroup = null; renderReport(); };
+    bindPer(box);
     box.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { repMode = b.dataset.m; renderReport(); });
-  } catch (e) { box.innerHTML += `<div class="empty"><b>Xatolik</b>${esc(e.message)}</div>`; }
+  };
+  const cached = repCache[myG] || LS.get('rep|' + myG, null);
+  if (cached) drawG(cached);
+  else {
+    box.innerHTML = `<button class="btn btn-ghost" id="repBack" style="margin-top:4px">← Barcha guruhlar</button><div class="spin"></div>`;
+    $('#repBack').onclick = () => { repGroup = null; renderReport(); };
+  }
+  try {
+    const j = await getRep(myG, true);
+    if (curView === 'report' && repGroup === myG && repPer === myPer) drawG(j);
+  } catch (e) { if (!cached) box.innerHTML += `<div class="empty"><b>Xatolik</b>${esc(e.message)}</div>`; }
 }
 
 /* ---------- OYLIK KALENDAR ---------- */
