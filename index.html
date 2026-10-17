@@ -118,6 +118,15 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .tag.risk{background:var(--no);color:#fff} .tag.rol{background:#fff1d6;color:#b45309}
 .izoh{font-size:12px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-wrap}
 .mbtn{margin-left:auto;width:32px;height:32px;border-radius:10px;background:var(--bg);color:var(--muted);font-weight:900;font-size:18px;flex-shrink:0;display:grid;place-items:center}
+.vbtn.on{background:var(--no)!important;color:#fff!important;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5)}50%{box-shadow:0 0 0 8px rgba(220,38,38,0)}}
+.vbar{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:var(--card);box-shadow:var(--shadow);font-size:13px}
+.vbar .tr{color:var(--muted);min-height:18px;font-style:italic}
+.vbar .ap{margin-top:4px;font-weight:700}
+.hist{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 12px}
+.hist .hc{width:40px;border-radius:8px;padding:3px 0;text-align:center;font-size:10px;line-height:1.2;background:var(--bg);color:var(--muted)}
+.hist .hc b{display:block;font-size:13px}
+.hist .h-plus{background:var(--ok-soft);color:var(--ok)} .hist .h-minus{background:var(--no-soft);color:var(--no)} .hist .h-s{background:var(--sab-soft);color:var(--sab)} .hist .h-k{background:var(--late-soft);color:var(--late)} .hist .h-d{outline:2px solid var(--daf)}
 .filt{padding:9px 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--text)}
 .seg{display:flex;background:var(--bg);border-radius:12px;padding:3px;gap:3px}
 .seg button{min-width:42px;height:38px;border-radius:9px;font-weight:800;font-size:16px;color:var(--muted)}
@@ -314,10 +323,12 @@ th.l{z-index:3}
         <option value="rol">Yetakchi / sardor</option>
         <option value="izoh">Izohi borlar</option>
       </select>
+      <button class="btn btn-ghost vbtn" id="voiceBtn" style="background:var(--no-soft);color:var(--no)">🎤 Ovoz</button>
       <input class="search" id="search" placeholder="Qidirish…">
     </div>
   </div>
   <div class="wrap" style="padding-top:12px">
+    <div class="vbar hide" id="voiceBar"><div class="tr" id="voiceTr">Gapiring: «Karimov yo'q», «Saidov kechikdi besh», «Aliyev daftar yo'q», «hammasi keldi»…</div><div class="ap" id="voiceAp"></div></div>
     <div class="legend">
       <span><i style="background:var(--ok)"></i>+ keldi</span><span><i style="background:var(--no)"></i>− kelmadi</span>
       <span><i style="background:var(--sab)"></i>S sababli</span><span><i style="background:var(--late)"></i>K kechikdi</span>
@@ -335,6 +346,7 @@ th.l{z-index:3}
   <form class="lcard" style="max-width:400px;width:100%">
     <h1 style="font-size:18px" id="metaName"></h1>
     <p class="small" id="metaStat"></p>
+    <div class="hist" id="metaHist"></div>
     <label class="fld"><span>Guruhdagi vazifasi</span>
       <select name="rol" class="filt" style="width:100%">
         <option value="">— yo'q —</option>
@@ -381,7 +393,8 @@ let INIT = null;
 let curDate = todayStr();
 let curView = 'today';
 let att = null;          // {guruh, sana, oquvchilar, dirty}
-const STAT = {};         // guruh -> { normName: {kelmadi, sababli, daftarsiz, ortacha, bahoSoni} }  (hisobotdan)
+const STAT = {};         // guruh -> { normName: {kelmadi, sababli, daftarsiz, ortacha, bahoSoni, belgilar} }  (hisobotdan)
+const SANA = {};         // guruh -> hisobotdagi sanalar ro'yxati (o'quvchi tarixi uchun)
 const META = {};         // guruh -> { r: {rol, izoh} }  (yetakchi/sardor va izohlar)
 const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9а-яёўқғҳ]/g, '');
 const lvl = st => !st || !st.bahoSoni ? null : st.ortacha >= 4.5 ? 5 : st.ortacha >= 3.5 ? 4 : st.ortacha >= 2.5 ? 3 : 2;
@@ -700,7 +713,7 @@ $('#filt').onchange = () => att && drawAtt();
 
 /* ---------- O'quvchi statistikasi (hisobotdan), vazifa va izoh ---------- */
 function loadStat(g) {
-  const apply = j => { if (!j || !j.oquvchilar) return; const m = {}; j.oquvchilar.forEach(o => { m[norm(o.name)] = o; }); STAT[g] = m; if (att && att.guruh === g) drawAtt(); };
+  const apply = j => { if (!j || !j.oquvchilar) return; const m = {}; j.oquvchilar.forEach(o => { m[norm(o.name)] = o; }); STAT[g] = m; SANA[g] = j.sanalar || []; if (att && att.guruh === g) drawAtt(); };
   apply(LS.get('rep|' + g, null));
   getRep(g, true).then(apply).catch(() => {});
 }
@@ -718,6 +731,12 @@ function openMeta(o) {
   $('#metaName').textContent = o.name;
   $('#metaStat').textContent = st ? `Keldi ${st.keldi || 0} · kelmadi ${st.kelmadi || 0} · sababli ${st.sababli || 0} · kechikdi ${st.kechikdi || 0} · daftarsiz ${st.daftarsiz || 0}` + (st.bahoSoni ? ` · o'rtacha baho ${st.ortacha} (${st.bahoSoni} ta)` : ' · baho yo\'q') : 'Statistika hali yuklanmadi';
   f.rol.value = m.rol || ''; f.izoh.value = m.izoh || '';
+  const H = $('#metaHist'), sn = SANA[att.guruh] || [];
+  H.innerHTML = st && st.belgilar && st.belgilar.length ? st.belgilar.map(([c, b], i) => {
+    c = String(c || ''); const k = { '+': 'h-plus', '-': 'h-minus', s: 'h-s', k: 'h-k' }[c.replace('d', '')] || '';
+    const sym = { '+': '+', '-': '−', s: 'S', k: 'K' }[c.replace('d', '')] || '·';
+    return `<div class="hc ${k}${c.includes('d') ? ' h-d' : ''}" title="${esc(sn[i] || '')}${c.includes('d') ? ' · daftar yo\'q' : ''}">${esc(sn[i] || '')}<b>${sym}${b !== '' && b != null ? ' ' + esc(b) : ''}</b></div>`;
+  }).join('') : '';
   M.classList.remove('hide');
 }
 $('#metaM').querySelector('[data-x]').onclick = () => $('#metaM').classList.add('hide');
@@ -729,6 +748,78 @@ $('#metaM').querySelector('form').onsubmit = e => {
   api('saveMeta', { group: g, r: metaO.r, name: metaO.name, rol: v.rol, izoh: v.izoh })
     .then(() => toast("Izoh saqlandi ✓")).catch(e => toast("Izoh faqat shu qurilmada saqlandi (" + e.message + ")", 3500));
 };
+/* ---------- Ovozli davomat (Web Speech API) ---------- */
+let rec = null, recOn = false;
+const CYR = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'j',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'x',ц:'s',ч:'ch',ш:'sh',щ:'sh',ъ:'',ы:'i',ь:'',э:'e',ю:'yu',я:'ya',ў:'o',қ:'q',ғ:'g',ҳ:'h' };
+const vnorm = w => String(w || '').toLowerCase().replace(/[а-яёўқғҳ]/g, ch => CYR[ch] ?? ch).replace(/ʻ|ʼ|'|’|`|‘/g, '').replace(/x/g, 'h').replace(/[^a-z0-9]/g, '');
+function lev(a, b) { const m = a.length, n = b.length; if (!m || !n) return m + n; let p = Array.from({ length: n + 1 }, (_, i) => i); for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[n]; }
+const VCMD = [
+  [/^(yoq|yuq|kelmadi|kelmagan|minus|net|otsutstvuet)$/, o => { o.s = '-'; o.b = ''; o.d = false; return 'kelmadi'; }],
+  [/^(sababli|sabab|uvajitelno|uvajitelnaya)$/, o => { o.s = 's'; o.b = ''; o.d = false; return 'sababli'; }],
+  [/^(kech|kechikdi|kechikkan|kechikib|opozdal)$/, o => { o.s = 'k'; return 'kechikdi'; }],
+  [/^(keldi|bor|plyus|plus|prisutstvuet|kelgan)$/, o => { o.s = '+'; return 'keldi'; }],
+  [/^(daftar|daftarsiz|dafter|tetrad|tetradi)$/, o => { if (!o.s || o.s === '-' || o.s === 's') o.s = '+'; o.d = true; return "daftar yo'q"; }],
+  [/^(besh|5|pyat)$/, o => { if (!o.s) o.s = '+'; o.b = 5; return 'baho 5'; }],
+  [/^(tort|turt|4|chetire|chetyre)$/, o => { if (!o.s) o.s = '+'; o.b = 4; return 'baho 4'; }],
+  [/^(uch|3|tri)$/, o => { if (!o.s) o.s = '+'; o.b = 3; return 'baho 3'; }],
+  [/^(ikki|2|dva)$/, o => { if (!o.s) o.s = '+'; o.b = 2; return 'baho 2'; }],
+];
+function vMatch(tok) {   // so'zni o'quvchiga moslash (familiya yoki ism bo'yicha)
+  if (!att || tok.length < 3) return null;
+  let best = null, bd = 9;
+  att.oquvchilar.forEach(o => {
+    const parts = o.name.split(/\s+/).slice(0, 2).map(vnorm).filter(Boolean);
+    parts.forEach((p, pi) => {
+      let d = lev(tok, p); if (tok.length >= 4 && p.startsWith(tok)) d = Math.min(d, 1); if (p.length >= 4 && tok.startsWith(p)) d = Math.min(d, 1);
+      const lim = p.length >= 8 ? 3 : p.length >= 5 ? 2 : 1;
+      d += pi * 0.5;   // familiya ismdan ustun
+      if (d <= lim && d < bd) { bd = d; best = o; }
+    });
+  });
+  return best;
+}
+function applyVoice(text) {
+  const toks = text.split(/\s+/).map(vnorm).filter(Boolean), done = [];
+  if (/hammasikeldi|hammakeldi|barchasikeldi/.test(toks.join(''))) { att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); done.push('hammasi keldi'); }
+  let cur = null, acts = [];
+  const flush = () => { if (cur && acts.length) done.push(cur.name.split(' ').slice(0, 2).join(' ') + ' → ' + acts.join(', ')); acts = []; };
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (t === 'daftar' && toks[i + 1] && /^(yoq|yuq)$/.test(toks[i + 1])) { if (cur) { acts.push(VCMD[4][1](cur)); } i++; continue; }
+    const cmd = VCMD.find(([re]) => re.test(t));
+    if (cmd && cur) { acts.push(cmd[1](cur)); continue; }
+    const o = vMatch(t);
+    if (o) { flush(); cur = o; continue; }
+  }
+  flush();
+  if (done.length) {
+    att.oquvchilar.forEach(o => { if (o.s === '-' || o.s === 's' || o.s === '') { o.f = false; o.q = false; } });
+    att.dirty = att.touched = true; saveQF(); saveDraft(); drawAtt();
+    $('#voiceAp').textContent = '✓ ' + done.join(' · ');
+    if (navigator.vibrate) navigator.vibrate(40);
+  } else $('#voiceAp').textContent = "Tushunmadim — familiyani aniqroq ayting";
+}
+function stopVoice() { recOn = false; try { rec && rec.stop(); } catch (e) {} $('#voiceBtn').classList.remove('on'); $('#voiceBtn').textContent = '🎤 Ovoz'; }
+$('#voiceBtn').onclick = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast("Bu brauzerda ovozli kiritish yo'q — Chrome yoki Safari'da oching", 3500);
+  if (recOn) return stopVoice();
+  if (!att) return;
+  rec = new SR(); rec.lang = 'uz-UZ'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+  rec.onresult = e => {
+    let fin = '', inter = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) fin += t + ' '; else inter += t; }
+    $('#voiceTr').textContent = (fin || inter).trim() || '…';
+    if (fin.trim() && att) applyVoice(fin);
+  };
+  rec.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { toast('Mikrofonga ruxsat bering (brauzer sozlamalari)', 3500); stopVoice(); } else if (e.error === 'language-not-supported') { rec.lang = 'ru-RU'; } };
+  rec.onend = () => { if (recOn) { try { rec.start(); } catch (e) {} } };
+  recOn = true; $('#voiceBar').classList.remove('hide'); $('#voiceBtn').classList.add('on'); $('#voiceBtn').textContent = '⏹ To\'xtatish'; $('#voiceAp').textContent = '';
+  try { rec.start(); } catch (e) { toast(e.message); stopVoice(); }
+};
+$('#attBack').addEventListener('click', stopVoice);
+$('#saveBtn').addEventListener('click', stopVoice);
+
 $('#addStu').onclick = async () => {
   if (!att) return;
   const name = (prompt("Yangi o'quvchi F.I.Sh. (ro'yxat oxiriga qo'shiladi):") || '').trim();
@@ -1129,12 +1220,61 @@ async function getRep(g, fresh) {
   const j = await api('report', { group: g });
   repCache[g] = j; LS.set('rep|' + g, j); return j;
 }
+/* ---------- Excel eksport (SheetJS, kerak bo'lganda yuklanadi) ---------- */
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok; sc.onerror = () => no(new Error("Excel kutubxonasi yuklanmadi (internet?)")); document.head.appendChild(sc); });
+}
+const XH = { meta: 'Toshkent tuman 1-son texnikumi · Matematika · O\'qituvchi: Mashrapov Q.' };
+function xlsSheet(wb, name, rows, widths) {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+}
+const fnSafe = t => String(t).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_');
+async function xlsGroup(g, nomi, j, tot) {
+  try {
+    await loadXLSX();
+    const S = j.oquvchilar, per = perName(repPer), wb = XLSX.utils.book_new();
+    const nm = o => o.name;
+    const p = o => { const all = o.keldi + o.kechikdi + o.kelmadi + o.sababli; return all ? Math.round((o.keldi + o.kechikdi) / all * 100) : ''; };
+    xlsSheet(wb, 'Jami', [
+      [`${g} guruh — ${nomi}`], [XH.meta], [`Davr: ${per} · Darslar: ${j.sanalar.length} · Davomat: ${pct(tot) ?? '—'}% · O'rtacha baho: ${avgB(tot) ?? '—'} · Kelmadi: ${tot.yoq} · Sababli: ${tot.sab} · Daftarsiz: ${tot.f}`], [],
+      ['T/r', 'F.I.Sh.', 'Keldi', 'Kelmadi', 'Sababli', 'Kechikdi', "Daftar yo'q", 'Baholar soni', "O'rtacha baho", 'Davomat %'],
+      ...S.map(o => [o.n, nm(o), o.keldi, o.kelmadi, o.sababli, o.kechikdi, o.daftarsiz, o.bahoSoni, o.ortacha ?? '', p(o)]),
+      [], ['', 'JAMI', S.reduce((a, o) => a + o.keldi, 0), tot.yoq, tot.sab, tot.kech, tot.f, tot.n, avgB(tot) ?? '', pct(tot) ?? '']
+    ], [5, 42, 8, 9, 9, 9, 11, 12, 13, 11]);
+    if (j.sanalar.length) xlsSheet(wb, 'Kunlar', [
+      [`${g} guruh — kunlar bo'yicha (${per})`], ['Belgilar: + keldi · - kelmadi · s sababli · k kechikdi · d — daftar yo\'q · raqam — baho'], [],
+      ['T/r', 'F.I.Sh.', ...j.sanalar],
+      ...S.map(o => [o.n, nm(o), ...o.belgilar.map(([c, b]) => (String(c || '') + (b !== '' && b != null ? ' ' + b : '')).trim())])
+    ], [5, 42, ...j.sanalar.map(() => 7)]);
+    const bad = S.filter(o => o.kelmadi > 0 || o.daftarsiz > 0).sort((a, b) => (b.kelmadi - a.kelmadi) || (b.daftarsiz - a.daftarsiz));
+    xlsSheet(wb, 'Kelmaganlar', [[`${g} guruh — ko'p kelmagan / daftarsiz o'quvchilar (${per})`], [], ['T/r', 'F.I.Sh.', 'Kelmadi (sababsiz)', 'Sababli', "Daftar yo'q", 'Izoh'],
+      ...bad.map((o, i) => [i + 1, nm(o), o.kelmadi, o.sababli, o.daftarsiz, (o.kelmadi >= RISK_N || o.daftarsiz >= RISK_N) ? 'XAVFLI — ota-onasi bilan ishlash' : ''])], [5, 42, 18, 9, 11, 32]);
+    XLSX.writeFile(wb, fnSafe(`Hisobot_${g}_${per}.xlsx`));
+  } catch (e) { toast(e.message, 4000); }
+}
+async function xlsAll(ov) {
+  try {
+    await loadXLSX();
+    const per = perName(repPer), wb = XLSX.utils.book_new();
+    xlsSheet(wb, 'Umumiy', [[`Barcha guruhlar — ${per}`], [XH.meta], [],
+      ['Guruh', "Yo'nalish", "O'quvchilar", 'Darslar', 'Davomat %', "O'rtacha baho", 'Kelmadi', 'Sababli', "Daftar yo'q"],
+      ...ov.map(o => [o.guruh, o.nomi, o.oquvchiSoni, o.darslar, o.davomat ?? '', o.ortacha ?? '', o.kelmadi ?? '', o.sababli ?? '', o.daftarsiz])], [8, 40, 11, 8, 11, 13, 9, 9, 11]);
+    // Har bir guruhning kelmaganlari (kesh bor bo'lsa)
+    const rows = [[`Ko'p kelmagan / daftarsiz o'quvchilar — ${per}`], [], ['Guruh', 'T/r', 'F.I.Sh.', 'Kelmadi', 'Sababli', "Daftar yo'q"]];
+    ov.forEach(o => { const j = repCache[o.guruh] || LS.get('rep|' + o.guruh, null); if (!j) return; repFilter(j, repPer).oquvchilar.filter(x => x.kelmadi >= RISK_N || x.daftarsiz >= RISK_N).forEach(x => rows.push([o.guruh, x.n, x.name, x.kelmadi, x.sababli, x.daftarsiz])); });
+    if (rows.length > 3) xlsSheet(wb, 'Xavfli', rows, [8, 5, 42, 9, 9, 11]);
+    XLSX.writeFile(wb, fnSafe(`Hisobot_barcha_${per}.xlsx`));
+  } catch (e) { toast(e.message, 4000); }
+}
 async function renderReport() {
   const box = $('#v-report');
   if (!repGroup) {
     const myPer = repPer;
     const draw = ov => {
-      let h = `<h2 class="sec">Barcha guruhlar — ${esc(perName(repPer))}</h2>` + perBar();
+      let h = `<div style="display:flex;align-items:center;gap:8px"><h2 class="sec" style="flex:1">Barcha guruhlar — ${esc(perName(repPer))}</h2><button class="btn btn-ghost" id="xlsAll" style="background:#e3f7e9;color:#1e7e34">⬇ Excel</button></div>` + perBar();
       if (!ov) { box.innerHTML = h + '<div class="sk"></div><div class="sk"></div>'; bindPer(box); return; }
       const tot = ov.reduce((a, o) => ({ s: a.s + o.oquvchiSoni, d: a.d + o.darslar, f: a.f + o.daftarsiz }), { s: 0, d: 0, f: 0 });
       const dv = ov.filter(o => o.davomat !== null), avg = dv.length ? Math.round(dv.reduce((a, o) => a + o.davomat, 0) / dv.length * 10) / 10 : '—';
@@ -1146,6 +1286,7 @@ async function renderReport() {
         <div class="kv"><span>Darslar</span><b>${o.darslar}</b></div>${o.kelmadi !== undefined ? `<div class="kv"><span>Kelmadi / sababli</span><b>${o.kelmadi} / ${o.sababli}</b></div>` : ''}<div class="kv"><span>Daftarsiz</span><b>${o.daftarsiz}</b></div></button>`).join('') + '</div>';
       box.innerHTML = h;
       bindPer(box);
+      $('#xlsAll').onclick = () => xlsAll(ov);
       box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { repGroup = b.dataset.g; renderReport(); });
     };
     if (repPer === 'jami') {
@@ -1175,6 +1316,7 @@ async function renderReport() {
     const months = [...new Set(j0.sanalar.map(s => { const d = repDate(s); return d ? d.getMonth() + 1 : null; }).filter(Boolean))];
     let h = `<div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px"><button class="btn btn-ghost" id="repBack">←</button>
       <div><div style="font-weight:800;font-size:20px">${esc(repGroup)} guruh</div><div class="small">${esc(gi.nomi || '')}</div></div><div class="sp"></div>
+      <button class="btn btn-ghost" id="xlsG" style="background:#e3f7e9;color:#1e7e34">⬇ Excel</button>
       ${gi.url ? `<a class="btn btn-ghost" href="${esc(gi.url)}" target="_blank" rel="noopener">Sheets</a>` : ''}</div>
       ${perBar(months)}
       <div class="small" style="margin:-4px 0 10px">Davr: <b>${esc(perName(repPer))}</b></div>
@@ -1195,6 +1337,7 @@ async function renderReport() {
     }
     box.innerHTML = h;
     $('#repBack').onclick = () => { repGroup = null; renderReport(); };
+    $('#xlsG').onclick = () => xlsGroup(repGroup, gi.nomi || '', j, tot);
     bindPer(box);
     box.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { repMode = b.dataset.m; renderReport(); });
   };

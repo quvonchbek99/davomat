@@ -9,6 +9,9 @@ Sayt: https://quvonchbek99.github.io/davomat/ · Backend: Google Apps Script "Da
 - **Baho darajasi.** O'rtacha baho bo'yicha «5» / «4» / «3» / «2» oladiganlar rangli belgi bilan ajratiladi (≥4.5 → 5, ≥3.5 → 4, ≥2.5 → 3, boshqasi → 2).
 - **Guruh yetakchisi / sardor va izoh.** Kartadagi «⋯» tugmasi → vazifa (👑 yetakchi, ⭐ sardor) va o'quvchi holati bo'yicha izoh. Izoh kartada ko'rinadi, boshqaruv faylining **Izoh** varag'ida saqlanadi.
 - **Saralash.** Davomat oynasidagi ro'yxat: Hammasi / ⚠ Xavfli / «5» / «4» / «3» / «2» / Yetakchi-sardor / Izohi borlar.
+- **🎤 Ovozli davomat.** Davomat oynasida «Ovoz» tugmasi (Chrome/Safari). Gapiring: «Karimov yo'q», «Saidov kechikdi besh», «Aliyev daftar yo'q», «Ergasheva sababli», «hammasi keldi». Familiya taxminan mos kelsa ham tanib oladi (kirill/lotin farqi yo'q); natija pastda yozib boriladi, qoralama avto-saqlanadi.
+- **O'quvchi tarixi.** Karta «⋯» → butun davr belgilarining vaqt chizig'i (sana, +/−/S/K, baho, daftarsiz — binafsha hoshiya).
+- **⬇ Excel hisobot.** Hisobot bo'limida: guruh uchun (Jami · Kunlar · Kelmaganlar varaqlari) va barcha guruhlar uchun (Umumiy · Xavfli) — tanlangan davr (yillik / semestr / oy / kun) bo'yicha.
 - **➕ O'quvchi qo'shish.** Guruh jurnalining oxiriga yangi qator qo'shadi (T/r, F.I.Sh., formulalar nusxalanadi).
 
 ### Apps Script'ni yangilash (yetakchi/izoh va o'quvchi qo'shish uchun shart)
