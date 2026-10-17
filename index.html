@@ -111,6 +111,14 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .nm{font-weight:700;line-height:1.25}
 .nm small{display:block;font-weight:500;color:var(--muted);font-size:12px}
 .row2{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.stu.risk{background:var(--no-soft);box-shadow:0 0 0 1.5px var(--no) inset}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.tag{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;background:var(--bg);color:var(--muted)}
+.tag.l5{background:var(--ok-soft);color:var(--ok)} .tag.l4{background:#e3ecfa;color:#2b579a} .tag.l3{background:#fff3e0;color:#ef6c00} .tag.l2{background:var(--no-soft);color:var(--no)}
+.tag.risk{background:var(--no);color:#fff} .tag.rol{background:#fff1d6;color:#b45309}
+.izoh{font-size:12px;color:var(--muted);margin-top:4px;font-style:italic;white-space:pre-wrap}
+.mbtn{margin-left:auto;width:32px;height:32px;border-radius:10px;background:var(--bg);color:var(--muted);font-weight:900;font-size:18px;flex-shrink:0;display:grid;place-items:center}
+.filt{padding:9px 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--text)}
 .seg{display:flex;background:var(--bg);border-radius:12px;padding:3px;gap:3px}
 .seg button{min-width:42px;height:38px;border-radius:9px;font-weight:800;font-size:16px;color:var(--muted)}
 .seg button.on[data-s="+"]{background:var(--ok);color:#fff}
@@ -295,6 +303,17 @@ th.l{z-index:3}
       <button class="btn btn-ghost" id="bildBtn" style="background:#fff1d6;color:#b45309">📄 Bildirgi</button>
       <button class="btn btn-ghost" id="bildDl" style="background:#e3ecfa;color:#2b579a">⬇ Bildirgini yuklab olish</button>
       <button class="btn btn-ghost" id="clearAll" style="background:var(--bg);color:var(--muted)">Tozalash</button>
+      <button class="btn btn-ghost" id="addStu" style="background:var(--ok-soft);color:var(--ok)">➕ O'quvchi</button>
+      <select class="filt" id="filt" title="Saralash">
+        <option value="">Hammasi</option>
+        <option value="risk">⚠ Xavfli (ko'p kelmaydi / daftarsiz)</option>
+        <option value="l5">«5» oladiganlar</option>
+        <option value="l4">«4» oladiganlar</option>
+        <option value="l3">«3» oladiganlar</option>
+        <option value="l2">«2» oladiganlar</option>
+        <option value="rol">Yetakchi / sardor</option>
+        <option value="izoh">Izohi borlar</option>
+      </select>
       <input class="search" id="search" placeholder="Qidirish…">
     </div>
   </div>
@@ -312,6 +331,21 @@ th.l{z-index:3}
   </div></div>
 </section>
 
+<div id="metaM" class="hide" style="position:fixed;inset:0;z-index:60;background:rgba(10,12,30,.45);display:grid;place-items:center;padding:16px">
+  <form class="lcard" style="max-width:400px;width:100%">
+    <h1 style="font-size:18px" id="metaName"></h1>
+    <p class="small" id="metaStat"></p>
+    <label class="fld"><span>Guruhdagi vazifasi</span>
+      <select name="rol" class="filt" style="width:100%">
+        <option value="">— yo'q —</option>
+        <option value="yetakchi">👑 Guruh yetakchisi</option>
+        <option value="sardor">⭐ Sardor</option>
+      </select></label>
+    <label class="fld"><span>O'quvchi holati bo'yicha izoh</span><textarea name="izoh" rows="4" style="width:100%;padding:10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font:inherit;resize:vertical" placeholder="Masalan: ota-onasi bilan gaplashildi, 2 hafta kasal bo'ldi…"></textarea></label>
+    <div style="display:flex;gap:8px"><button type="button" class="btn" data-x style="background:var(--bg)">Bekor</button>
+    <button class="btn btn-pri" style="flex:1">Saqlash</button></div>
+  </form>
+</div>
 <div class="toast" id="toast"></div>
 <div id="bild" class="hide">
   <div class="bbar">
@@ -347,6 +381,12 @@ let INIT = null;
 let curDate = todayStr();
 let curView = 'today';
 let att = null;          // {guruh, sana, oquvchilar, dirty}
+const STAT = {};         // guruh -> { normName: {kelmadi, sababli, daftarsiz, ortacha, bahoSoni} }  (hisobotdan)
+const META = {};         // guruh -> { r: {rol, izoh} }  (yetakchi/sardor va izohlar)
+const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9а-яёўқғҳ]/g, '');
+const lvl = st => !st || !st.bahoSoni ? null : st.ortacha >= 4.5 ? 5 : st.ortacha >= 3.5 ? 4 : st.ortacha >= 2.5 ? 3 : 2;
+const RISK_N = 3;        // shuncha marta kelmagan yoki daftarsiz bo'lsa — qizil
+const isRisk = st => !!st && ((st.kelmadi || 0) >= RISK_N || (st.daftarsiz || 0) >= RISK_N);
 
 function todayStr() {
   const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tashkent' }));
@@ -561,14 +601,22 @@ async function openAtt(g, date) {
     att = { guruh: g, sana: date, oquvchilar: list.map(o => Object.assign({}, o)), dirty: false, touched: false, cache: fromCache };
     const pend = LS.get('pending', []).find(x => x.group === g && x.date === date);
     if (pend) { pend.marks.forEach(m => { const o = att.oquvchilar.find(x => x.r === m.r); if (o) Object.assign(o, { s: m.s, b: m.b, d: m.d }); }); }
+    // Avto-saqlangan qoralama (Saqlash bosilmay chiqib ketilgan bo'lsa) — hamma narsadan ustun
+    const draft = LS.get('draft|' + g + '|' + date, null);
+    if (draft) {
+      att.oquvchilar.forEach(o => { const m = draft[o.r]; if (m) Object.assign(o, { s: m.s || '', b: m.b || '', d: !!m.d }); });
+      att.dirty = true; att.touched = true;
+      if (!draftShown) { draftShown = true; toast("Saqlanmagan qoralama tiklandi — tekshirib «Saqlash»ni bosing", 3500); }
+    }
     // Guruh rahbari guruhi (05-25): avtomatik hammasi "+"
-    if (KUNLIK[g] && !pend && att.oquvchilar.every(o => !o.s)) { att.oquvchilar.forEach(o => o.s = '+'); att.dirty = true; }
+    if (KUNLIK[g] && !pend && !draft && att.oquvchilar.every(o => !o.s)) { att.oquvchilar.forEach(o => o.s = '+'); att.dirty = true; }
     if (KUNLIK[g]) { const qf = LS.get('qf|' + g + '|' + date, {}); att.oquvchilar.forEach(o => { const v = qf[o.r] || {}; o.q = !!v.q; o.f = !!v.f; }); }
     setFoto(keepFoto);
     drawAtt();
   };
   // Keshdan darhol ko'rsatish: shu kunning o'zi, bo'lmasa guruh ro'yxati (belgisiz)
-  const myOpen = ++openSeq;
+  const myOpen = ++openSeq; let draftShown = false;
+  loadStat(g); loadMeta(g);
   const les = LS.get(key, null), stu = LS.get('stu|' + g, null);
   if (les) show(les, true);
   else if (stu) show(stu.map(o => Object.assign({}, o, { s: '', b: '', d: false })), true);
@@ -583,21 +631,36 @@ async function openAtt(g, date) {
   } catch (e) { if (myOpen === openSeq && !att) $('#stuList').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; }
 }
 function closeAtt() {
-  if (att && att.dirty && !confirmLeave()) return;
+  if (att && att.dirty) { saveDraft(); toast("Qoralama saqlandi — qayta ochganda davom etasiz", 2500); }
   $('#att').classList.add('hide'); document.body.style.overflow = ''; att = null; render();
 }
-function confirmLeave() { return window.confirm("Saqlanmagan o'zgarishlar bor. Chiqib ketilsinmi?"); }
+// Avto-saqlash: har bir bosishda belgilar shu qurilmaga yoziladi (Saqlash bosilmasa ham yo'qolmaydi)
+function saveDraft() {
+  if (!att) return;
+  const d = {}; att.oquvchilar.forEach(o => { if (o.s || o.b || o.d) d[o.r] = { s: o.s, b: o.b, d: !!o.d }; });
+  if (Object.keys(d).length) LS.set('draft|' + att.guruh + '|' + att.sana, d); else LS.del('draft|' + att.guruh + '|' + att.sana);
+}
+window.addEventListener('pagehide', () => { if (att && att.dirty) saveDraft(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && att && att.dirty) saveDraft(); });
 $('#attBack').onclick = closeAtt;
 
 function drawAtt() {
-  const q = $('#search').value.trim().toLowerCase();
+  const q = $('#search').value.trim().toLowerCase(), f = $('#filt').value;
   $('#stuList').innerHTML = att.oquvchilar.map((o, i) => {
     if (q && !o.name.toLowerCase().includes(q)) return '';
     const parts = o.name.split(' ');
     const cls = { '+': 's-plus', '-': 's-minus', 's': 's-s', 'k': 's-k' }[o.s] || '';
     const canD = o.s === '+' || o.s === 'k';
-    return `<div class="stu ${cls}" data-i="${i}">
-      <div class="row1"><div class="num">${esc(o.n || i + 1)}</div><div class="nm">${esc(parts.slice(0, 2).join(' '))}<small>${esc(parts.slice(2).join(' '))}</small></div></div>
+    const st = (STAT[att.guruh] || {})[norm(o.name)], m = (META[att.guruh] || {})[o.r] || {}, L = lvl(st), risk = isRisk(st);
+    if (f === 'risk' && !risk) return ''; if (/^l\d$/.test(f) && L !== +f[1]) return ''; if (f === 'rol' && !m.rol) return ''; if (f === 'izoh' && !m.izoh) return '';
+    const tags = [
+      m.rol === 'yetakchi' ? '<span class="tag rol">👑 Guruh yetakchisi</span>' : m.rol === 'sardor' ? '<span class="tag rol">⭐ Sardor</span>' : '',
+      L ? `<span class="tag l${L}">«${L}» · o'rt. ${st.ortacha}</span>` : '',
+      risk ? `<span class="tag risk">⚠ ${st.kelmadi ? st.kelmadi + '× kelmagan' : ''}${st.kelmadi && st.daftarsiz ? ' · ' : ''}${st.daftarsiz ? st.daftarsiz + '× daftarsiz' : ''}</span>` : ''
+    ].join('');
+    return `<div class="stu ${cls}${risk ? ' risk' : ''}" data-i="${i}">
+      <div class="row1"><div class="num">${esc(o.n || i + 1)}</div><div class="nm">${esc(parts.slice(0, 2).join(' '))}<small>${esc(parts.slice(2).join(' '))}</small></div><button class="mbtn" data-m title="Izoh / vazifa">⋯</button></div>
+      ${tags ? `<div class="tags">${tags}</div>` : ''}${m.izoh ? `<div class="izoh">💬 ${esc(m.izoh)}</div>` : ''}
       <div class="row2">
         <div class="seg">${[['+', '+'], ['-', '−'], ['s', 'S'], ['k', 'K']].map(([v, t]) => `<button data-s="${v}" class="${o.s === v ? 'on' : ''}">${t}</button>`).join('')}</div>
         <div class="grades">${[2, 3, 4, 5].map(b => `<button data-b="${b}" class="${Number(o.b) === b ? 'on' : ''}" ${o.s === '-' || o.s === 's' ? 'disabled style="opacity:.35"' : ''}>${b}</button>`).join('')}</div>
@@ -611,6 +674,7 @@ $('#stuList').addEventListener('click', e => {
   const card = e.target.closest('.stu'); if (!card || !att) return;
   const o = att.oquvchilar[+card.dataset.i];
   const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.m !== undefined) return openMeta(o);
   if (b.dataset.s !== undefined) {
     o.s = o.s === b.dataset.s ? '' : b.dataset.s;
     if (o.s === '-' || o.s === 's') { o.b = ''; o.d = false; }
@@ -628,11 +692,60 @@ $('#stuList').addEventListener('click', e => {
   if (o.s === '-' || o.s === 's' || o.s === '') { o.f = false; o.q = false; }
   saveQF();
   att.dirty = true; att.touched = true;
+  saveDraft();
   drawAtt();
 });
 $('#search').oninput = () => att && drawAtt();
-$('#allHere').onclick = () => { if (!att) return; att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); att.dirty = att.touched = true; drawAtt(); };
-$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; o.f = false; o.q = false; }); saveQF(); att.dirty = att.touched = true; drawAtt(); };
+$('#filt').onchange = () => att && drawAtt();
+
+/* ---------- O'quvchi statistikasi (hisobotdan), vazifa va izoh ---------- */
+function loadStat(g) {
+  const apply = j => { if (!j || !j.oquvchilar) return; const m = {}; j.oquvchilar.forEach(o => { m[norm(o.name)] = o; }); STAT[g] = m; if (att && att.guruh === g) drawAtt(); };
+  apply(LS.get('rep|' + g, null));
+  getRep(g, true).then(apply).catch(() => {});
+}
+function loadMeta(g) {
+  META[g] = LS.get('meta|' + g, {});
+  api('getMeta', { group: g }).then(j => {
+    if (!j || !Array.isArray(j.items)) return;
+    const m = META[g]; j.items.forEach(x => { if (x.r) m[x.r] = { rol: x.rol || '', izoh: x.izoh || '' }; });
+    LS.set('meta|' + g, m); if (att && att.guruh === g) drawAtt();
+  }).catch(() => {});
+}
+let metaO = null;
+function openMeta(o) {
+  metaO = o; const M = $('#metaM'), f = M.querySelector('form'), m = (META[att.guruh] || {})[o.r] || {}, st = (STAT[att.guruh] || {})[norm(o.name)];
+  $('#metaName').textContent = o.name;
+  $('#metaStat').textContent = st ? `Keldi ${st.keldi || 0} · kelmadi ${st.kelmadi || 0} · sababli ${st.sababli || 0} · kechikdi ${st.kechikdi || 0} · daftarsiz ${st.daftarsiz || 0}` + (st.bahoSoni ? ` · o'rtacha baho ${st.ortacha} (${st.bahoSoni} ta)` : ' · baho yo\'q') : 'Statistika hali yuklanmadi';
+  f.rol.value = m.rol || ''; f.izoh.value = m.izoh || '';
+  M.classList.remove('hide');
+}
+$('#metaM').querySelector('[data-x]').onclick = () => $('#metaM').classList.add('hide');
+$('#metaM').querySelector('form').onsubmit = e => {
+  e.preventDefault(); if (!att || !metaO) return;
+  const f = e.target, g = att.guruh, v = { rol: f.rol.value, izoh: f.izoh.value.trim() };
+  META[g] = META[g] || {}; if (v.rol || v.izoh) META[g][metaO.r] = v; else delete META[g][metaO.r];
+  LS.set('meta|' + g, META[g]); $('#metaM').classList.add('hide'); drawAtt();
+  api('saveMeta', { group: g, r: metaO.r, name: metaO.name, rol: v.rol, izoh: v.izoh })
+    .then(() => toast("Izoh saqlandi ✓")).catch(e => toast("Izoh faqat shu qurilmada saqlandi (" + e.message + ")", 3500));
+};
+$('#addStu').onclick = async () => {
+  if (!att) return;
+  const name = (prompt("Yangi o'quvchi F.I.Sh. (ro'yxat oxiriga qo'shiladi):") || '').trim();
+  if (!name) return;
+  const g = att.guruh, d = att.sana;
+  try {
+    toast("Qo'shilmoqda…", 4000);
+    const j = await api('addStudent', { group: g, name });
+    if (!j.r) throw new Error("Server 'addStudent' amalini bilmaydi — Apps Script'ni yangilang (apps-script/qoshimcha.gs)");
+    if (att && att.dirty) saveDraft();
+    LS.del('stu|' + g); LS.del('les|' + g + '|' + d); LS.del('overview');
+    toast(name + " qo'shildi ✓ (№" + (j.n || '') + ")", 3000);
+    openAtt(g, d);
+  } catch (e) { toast(e.message, 5000); }
+};
+$('#allHere').onclick = () => { if (!att) return; att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); att.dirty = att.touched = true; saveDraft(); drawAtt(); };
+$('#clearAll').onclick = () => { if (!att || !confirm('Barcha belgilar tozalansinmi?')) return; att.oquvchilar.forEach(o => { o.s = ''; o.b = ''; o.d = false; o.f = false; o.q = false; }); saveQF(); att.dirty = att.touched = true; saveDraft(); drawAtt(); };
 
 function counts() {
   const c = { '+': 0, '-': 0, s: 0, k: 0, d: 0, e: 0 };
@@ -657,7 +770,7 @@ $('#saveBtn').onclick = () => {
   const job = { id: Date.now(), group: att.guruh, date: att.sana, marks: att.oquvchilar.map(o => ({ r: o.r, s: o.s, b: o.b, d: o.d })) };
   addPending(job);
   LS.set('les|' + att.guruh + '|' + att.sana, att.oquvchilar.map(o => ({ r: o.r, n: o.n, name: o.name, s: o.s, b: o.b, d: o.d })));
-  att.dirty = false;
+  att.dirty = false; LS.del('draft|' + att.guruh + '|' + att.sana);
   toast("Saqlandi ✓ — Google Sheets'ga fonda yuborilmoqda", 2500);
   if (KUNLIK[att.guruh]) tgYubor(att.guruh, att.sana, att.oquvchilar.map(o => Object.assign({}, o)), att.foto);
   const bd = bildData(att.guruh, att.sana, att.oquvchilar);
@@ -1221,7 +1334,7 @@ const Demo = (() => {
     ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft'], ['05-25 I', 1, 'I', 'har'], ['05-25 II', 1, 'II', 'har'], ['05-25 III', 1, 'III', 'har'], ['05-25 I', 2, 'I', 'har'], ['05-25 II', 2, 'II', 'har'], ['05-25 III', 2, 'III', 'har'], ['05-25 I', 3, 'I', 'har'], ['05-25 II', 3, 'II', 'har'], ['05-25 III', 3, 'III', 'har'], ['05-25 I', 4, 'I', 'har'], ['05-25 II', 4, 'II', 'har'], ['05-25 III', 4, 'III', 'har'], ['05-25 I', 5, 'I', 'har'], ['05-25 II', 5, 'II', 'har'], ['05-25 III', 5, 'III', 'har'], ['05-25 I', 6, 'I', 'har'], ['05-25 II', 6, 'II', 'har'], ['05-25 III', 6, 'III', 'har']];
   const V = { I: '08:30-09:50', II: '10:00-11:20', III: '11:30-12:50' };
   const names = ['Abduraximov Saidalo Rustam o\'g\'li', 'Ashirboyev Abdulloh Shahriddin o\'g\'li', 'Baxtiyarova Bekzoda Boxodir qizi', 'Ergasheva Mubina Anvar qizi', 'Ikramov Azamat Jonibek o\'g\'li', 'Karimov Zoxirshoh Kamoliddin o\'g\'li', 'Minasyan David Vyacheslavovich', 'Mirolimova Mohinur Kamoliddin qizi', 'Nosirov Farrux Doniyorovich', 'Odilov Muhammadrizo Shoikrom o\'g\'li', 'Qodirova Aziza Muslimjon qizi', 'Saidov Abdulloh Muxlis o\'g\'li'];
-  const store = {};
+  const store = {}, meta = {};
   let jadval = J.map(([g, k, j, h]) => ({ guruh: g, kun: k, juftlik: j, vaqt: V[j], xona: '310-xona', hafta: h }));
   const wait = () => new Promise(r => setTimeout(r, 250));
   const rep = g => {
@@ -1246,6 +1359,9 @@ const Demo = (() => {
       if (a === 'overview') return { ok: true, guruhlar: G.map(([g]) => xul(g)) };
       if (a === 'report') return Object.assign({ ok: true }, rep(d.group));
       if (a === 'saveJadval') { jadval = d.rows; return { ok: true, jadval }; }
+      if (a === 'addStudent') { names.push(d.name); return { ok: true, r: names.length + 2, n: names.length }; }
+      if (a === 'getMeta') return { ok: true, items: Object.entries(meta[d.group] || {}).map(([r, v]) => Object.assign({ r: +r }, v)) };
+      if (a === 'saveMeta') { (meta[d.group] = meta[d.group] || {})[d.r] = { rol: d.rol, izoh: d.izoh }; return { ok: true }; }
       return { ok: true };
     }
   };
