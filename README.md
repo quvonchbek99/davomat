@@ -12,7 +12,7 @@ Sayt: https://quvonchbek99.github.io/davomat/ · Backend: Google Apps Script "Da
 - **➕ O'quvchi qo'shish.** Guruh jurnalining oxiriga yangi qator qo'shadi (T/r, F.I.Sh., formulalar nusxalanadi).
 
 ### Apps Script'ni yangilash (yetakchi/izoh va o'quvchi qo'shish uchun shart)
-`apps-script/qoshimcha.gs` faylini Apps Script loyihasiga qo'shing va `doPost` ichiga bitta qator kiriting — ko'rsatma faylning boshida. Keyin **Deploy → Manage deployments → New version**. Skript yangilanmaguncha izoh/vazifa faqat shu qurilmada saqlanadi, «O'quvchi qo'shish» esa xabar beradi.
+Apps Script'ga `qoshimcha.gs` joylangan va `doPost` ga `qoshimcha_(a, req)` chaqiruvi kiritilgan (nusxasi: `apps-script/qoshimcha.gs`). Kod o'zgarsa: **Deploy → Manage deployments → New version**.
 
 ## Belgilar (Google Sheets'da)
 `+` keldi · `-` kelmadi · `s` sababli · `k` kechikdi · `+d` / `kd` — keldi, lekin daftar yo'q · baho `2–5` (B ustuniga).
