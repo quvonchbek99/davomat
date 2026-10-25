@@ -185,6 +185,12 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .vbar{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:var(--card);box-shadow:var(--shadow);font-size:13px}
 .vbar .tr{color:var(--muted);min-height:18px;font-style:italic}
 .vbar .ap{margin-top:4px;font-weight:700}
+.vbar .ap.bad{color:var(--no)}
+.vbh{display:flex;align-items:center;gap:8px}.vbh .tr{flex:1}
+.vlang{flex-shrink:0;height:28px;padding:0 10px;border-radius:9px;background:var(--bg);font-weight:700;font-size:12px;color:var(--ink)}
+.vhint{margin-top:6px;font-size:11.5px;color:var(--muted)}
+.stu.vflash{animation:vflash 1.6s ease-out}
+@keyframes vflash{0%{box-shadow:0 0 0 3px var(--pri)}100%{box-shadow:var(--shadow)}}
 .hist{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 12px}
 .hist .hc{width:40px;border-radius:8px;padding:3px 0;text-align:center;font-size:10px;line-height:1.2;background:var(--bg);color:var(--muted)}
 .hist .hc b{display:block;font-size:13px}
@@ -391,7 +397,7 @@ th.l{z-index:3}
     </div>
   </div>
   <div class="wrap" style="padding-top:12px">
-    <div class="vbar hide" id="voiceBar"><div class="tr" id="voiceTr">Gapiring: «Karimov yo'q», «Saidov kechikdi besh», «Aliyev daftar yo'q», «hammasi keldi»…</div><div class="ap" id="voiceAp"></div></div>
+    <div class="vbar hide" id="voiceBar"><div class="vbh"><div class="tr" id="voiceTr">Gapiring…</div><button class="vlang" id="voiceLang" title="Tanish tili: o'zbek / rus">Til: O'zbek</button></div><div class="ap" id="voiceAp"></div><div class="vhint">Familiya yoki <b>raqam</b> + buyruq, har biridan keyin biroz to'xtang: «Karimov yo'q» · «12 besh» · «uch kechikdi» · «Aliyev daftar yo'q» · «7 sababli» · «hammasi keldi»</div></div>
     <div class="legend">
       <span><i style="background:var(--ok)"></i>+ keldi</span><span><i style="background:var(--no)"></i>− kelmadi</span>
       <span><i style="background:var(--sab)"></i>S sababli</span><span><i style="background:var(--late)"></i>K kechikdi</span>
@@ -841,73 +847,160 @@ $('#metaM').querySelector('form').onsubmit = e => {
     .then(() => toast("Izoh saqlandi ✓")).catch(e => toast("Izoh faqat shu qurilmada saqlandi (" + e.message + ")", 3500));
 };
 /* ---------- Ovozli davomat (Web Speech API) ---------- */
-let rec = null, recOn = false;
+// O'quvchini FAMILIYA/ISM yoki TARTIB RAQAMI bilan aytish mumkin: «Karimov yo'q», «12 besh», «uch kechikdi», «Aliyev daftar yo'q», «hammasi keldi».
+// Har bir pauza — alohida jumla. Google bir nechta variant beradi — eng tushunarlisi olinadi.
+let rec = null, recOn = false, recLang = LS.get('vlang', 'uz-UZ'), recErrs = 0, recT = null;
 const CYR = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'j',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'x',ц:'s',ч:'ch',ш:'sh',щ:'sh',ъ:'',ы:'i',ь:'',э:'e',ю:'yu',я:'ya',ў:'o',қ:'q',ғ:'g',ҳ:'h' };
 const vnorm = w => String(w || '').toLowerCase().replace(/[а-яёўқғҳ]/g, ch => CYR[ch] ?? ch).replace(/ʻ|ʼ|'|’|`|‘/g, '').replace(/x/g, 'h').replace(/[^a-z0-9]/g, '');
-function lev(a, b) { const m = a.length, n = b.length; if (!m || !n) return m + n; let p = Array.from({ length: n + 1 }, (_, i) => i); for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[n]; }
-const VCMD = [
-  [/^(yoq|yuq|kelmadi|kelmagan|minus|net|otsutstvuet)$/, o => { o.s = '-'; o.b = ''; o.d = false; return 'kelmadi'; }],
-  [/^(sababli|sabab|uvajitelno|uvajitelnaya)$/, o => { o.s = 's'; o.b = ''; o.d = false; return 'sababli'; }],
-  [/^(kech|kechikdi|kechikkan|kechikib|opozdal)$/, o => { o.s = 'k'; return 'kechikdi'; }],
-  [/^(keldi|bor|plyus|plus|prisutstvuet|kelgan)$/, o => { o.s = '+'; return 'keldi'; }],
-  [/^(daftar|daftarsiz|dafter|tetrad|tetradi)$/, o => { if (!o.s || o.s === '-' || o.s === 's') o.s = '+'; o.d = true; return "daftar yo'q"; }],
-  [/^(besh|5|pyat)$/, o => { if (!o.s) o.s = '+'; o.b = 5; return 'baho 5'; }],
-  [/^(tort|turt|4|chetire|chetyre)$/, o => { if (!o.s) o.s = '+'; o.b = 4; return 'baho 4'; }],
-  [/^(uch|3|tri)$/, o => { if (!o.s) o.s = '+'; o.b = 3; return 'baho 3'; }],
-  [/^(ikki|2|dva)$/, o => { if (!o.s) o.s = '+'; o.b = 2; return 'baho 2'; }],
+// Ismlar uchun talaffuz farqlarini yumshatish: q/k, gh/g, kh/h, dj/j, ts/s, «ye/yo» -> «e/o», ikki harf -> bitta
+const vph = w => vnorm(w).replace(/q/g, 'k').replace(/gh/g, 'g').replace(/kh/g, 'h').replace(/dj/g, 'j').replace(/ts/g, 's').replace(/y([eo])/g, '$1').replace(/(.)\1+/g, '$1');
+const VOW = new Set(['a', 'e', 'i', 'o', 'u']);
+// Levenshtein; unli harflar almashinuvi yarim xato (o/u, a/o, e/i — ovozda ko'p adashtiriladi)
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m || !n) return m + n;
+  let p = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) { const x = a[i - 1], y = b[j - 1]; c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (x === y ? 0 : VOW.has(x) && VOW.has(y) ? 0.5 : 1)); } p = c; }
+  return p[n];
+}
+// Sonlar: «12», «o'n ikki», «yigirma bir», «beshinchi», ruscha «двенадцать»
+const NUMW = { bir: 1, ikki: 2, uch: 3, tort: 4, turt: 4, besh: 5, olti: 6, yetti: 7, etti: 7, sakkiz: 8, sakiz: 8, toqqiz: 9, tuqqiz: 9, toqiz: 9, on: 10, un: 10, yigirma: 20, ottiz: 30, uttiz: 30, otiz: 30, qirq: 40, kirk: 40,
+  odin: 1, odna: 1, dva: 2, dve: 2, tri: 3, chetyre: 4, chetire: 4, pyat: 5, shest: 6, sem: 7, vosem: 8, devyat: 9, desyat: 10, odinnadsat: 11, dvenadsat: 12, trinadsat: 13, chetyrnadsat: 14, chetirnadsat: 14,
+  pyatnadsat: 15, shestnadsat: 16, semnadsat: 17, vosemnadsat: 18, devyatnadsat: 19, dvadsat: 20, tridsat: 30 };
+const numOf = t => { if (/^\d{1,2}$/.test(t)) return +t; const m = t.match(/^(\d{1,2})(chi|nchi|inchi|raqam|nomer|ga)$/); if (m) return +m[1]; if (t in NUMW) return NUMW[t]; const w = t.replace(/(i?nchi|chi)$/, ''); return w !== t && w in NUMW ? NUMW[w] : null; };
+function vToks(raw) {   // so'zlar -> [{t, n}], «o'n ikki» -> 12
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const n = numOf(raw[i]);
+    if (n != null && n % 10 === 0 && n >= 10 && n <= 40 && i + 1 < raw.length) { const u = numOf(raw[i + 1]); if (u != null && u >= 1 && u <= 9) { out.push({ t: raw[i] + raw[i + 1], n: n + u }); i++; continue; } }
+    out.push({ t: raw[i], n });
+  }
+  return out;
+}
+const VST = [   // holat buyruqlari
+  [/^(yoq|yuq|yok|yuk|kelmadi|kelmagan|kelmapti|kelmadilar|minus|net|niet|otsutstvuet|otsutstvuyet|otsutstvuyut)$/, o => { o.s = '-'; o.b = ''; o.d = false; return 'kelmadi'; }],
+  [/^(sababli|sabab|sababi|sababl|kasal|uvajitelno|uvajitelnaya|bolen|bolna|bolnoy)$/, o => { o.s = 's'; o.b = ''; o.d = false; return 'sababli'; }],
+  [/^(kech|kechikdi|kechikkan|kechikib|kechikti|kechqoldi|opozdal|opozdala|opozdali)$/, o => { o.s = 'k'; return 'kechikdi'; }],
+  [/^(keldi|kelgan|keldim|kelti|keld|bor|plyus|plus|prisutstvuet|prisutstvuyet|est|yest|zdes|tut)$/, o => { if (o.s !== 'k') o.s = '+'; return 'keldi'; }],
+  [/^(daftar|daftarsiz|dafter|daftari|daptar|tetrad|tetradi|tetradya|bezteteradi|beztetradi)$/, o => { if (!o.s || o.s === '-' || o.s === 's') o.s = '+'; o.d = true; return "daftar yo'q"; }],
 ];
-function vMatch(tok) {   // so'zni o'quvchiga moslash (familiya yoki ism bo'yicha)
-  if (!att || tok.length < 3) return null;
-  let best = null, bd = 9;
+const VGR = { alo: 5, ajoyib: 5, otlichno: 5, yahshi: 4, horosho: 4, qoniqarli: 3, koniqarli: 3, udovletvoritelno: 3, yomon: 2, ploho: 2, neudovletvoritelno: 2 };
+const VFILL = /^(baho|bahosi|bahosini|otsenka|ga|va|ham|raqam|raqamli|nomer|nomerli|oquvchi|uquvchi|deb|qoy|qoying|qo|endi|keyin|i|a)$/;
+const isStat = t => !!t && (VST.some(([re]) => re.test(t)) || /^daftar/.test(t));
+const gradeAct = n => o => { if (!o.s || o.s === '-' || o.s === 's') o.s = '+'; o.b = n; return 'baho ' + n; };
+// So'zni o'quvchiga moslash: familiya (yoki ism); Google familiyani ikkiga bo'lib yuborsa — keyingi so'z bilan qo'shib ham sinaladi
+function vMatch(tok, nxt) {
+  if (!att || tok.length < 3 || numOf(tok) != null || isStat(tok) || VFILL.test(tok)) return null;
+  const a = vph(tok), ab = nxt && !isStat(nxt) && numOf(nxt) == null ? vph(tok + nxt) : null;
+  const lim = s => s.length >= 8 ? 2.5 : s.length >= 5 ? 1.5 : 1;
+  let best = null, bd = 99;
   att.oquvchilar.forEach(o => {
-    const parts = o.name.split(/\s+/).slice(0, 2).map(vnorm).filter(Boolean);
+    const parts = o.name.split(/\s+/).slice(0, 2).map(vph).filter(Boolean);
     parts.forEach((p, pi) => {
-      let d = lev(tok, p); if (tok.length >= 4 && p.startsWith(tok)) d = Math.min(d, 1); if (p.length >= 4 && tok.startsWith(p)) d = Math.min(d, 1);
-      const lim = p.length >= 8 ? 3 : p.length >= 5 ? 2 : 1;
-      d += pi * 0.5;   // familiya ismdan ustun
-      if (d <= lim && d < bd) { bd = d; best = o; }
+      const tries = [[a, false]]; if (ab) tries.push([ab, true]);
+      tries.forEach(([t, two]) => {
+        let d = lev(t, p);
+        if (t.length >= 4 && p.startsWith(t)) d = Math.min(d, 1); if (p.length >= 4 && t.startsWith(p)) d = Math.min(d, 1);
+        if (d > lim(p)) return;
+        let sc = d + pi * 0.6 - (two ? 0.3 : 0), eat = two;
+        // familiyadan keyin ism aytilgan bo'lsa — aynan shu o'quvchi (bir xil familiyalilar uchun); ism ham «yeyiladi»
+        if (pi === 0 && !two && nxt && parts[1] && lev(vph(nxt), parts[1]) <= lim(parts[1])) { sc -= 1; eat = true; }
+        if (sc < bd) { bd = sc; best = { o, two: eat }; }
+      });
     });
   });
   return best;
 }
-function applyVoice(text) {
-  const toks = text.split(/\s+/).map(vnorm).filter(Boolean), done = [];
-  if (/hammasikeldi|hammakeldi|barchasikeldi/.test(toks.join(''))) { att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); done.push('hammasi keldi'); }
-  let cur = null, acts = [];
-  const flush = () => { if (cur && acts.length) done.push(cur.name.split(' ').slice(0, 2).join(' ') + ' → ' + acts.join(', ')); acts = []; };
+const vByNum = n => att.oquvchilar.find(o => String(o.n) === String(n)) || att.oquvchilar[n - 1] || null;
+// Bitta jumlani tahlil qilish (hech narsani o'zgartirmaydi): {all, steps: [{o, acts}], unk}
+function vParse(text) {
+  const raw = String(text || '').split(/\s+/).map(vnorm).filter(Boolean);
+  const joined = raw.join('');
+  const all = /hammasikeldi|hammakeldi|barchasikeldi|hammabor|hammasibor|vsezdes|vseprisutstvuyut|vseest/.test(joined);
+  const toks = vToks(raw), steps = []; let cur = null, unk = 0;
   for (let i = 0; i < toks.length; i++) {
-    const t = toks[i];
-    if (t === 'daftar' && toks[i + 1] && /^(yoq|yuq)$/.test(toks[i + 1])) { if (cur) { acts.push(VCMD[4][1](cur)); } i++; continue; }
-    const cmd = VCMD.find(([re]) => re.test(t));
-    if (cmd && cur) { acts.push(cmd[1](cur)); continue; }
-    const o = vMatch(t);
-    if (o) { flush(); cur = o; continue; }
+    const { t, n } = toks[i], nx = toks[i + 1];
+    if (/^(hammasi|hamma|barchasi|vse)$/.test(t) || VFILL.test(t)) continue;
+    if (/^daftar/.test(t) && nx && /^(yoq|yuq|yok|yuk|net)$/.test(nx.t)) { if (cur) cur.acts.push(VST[4][1]); else unk++; i++; continue; }
+    if (n != null) {
+      if (cur && n >= 2 && n <= 5 && !isStat(nx && nx.t)) { cur.acts.push(gradeAct(n)); continue; }   // o'quvchidan keyingi 2–5 — baho
+      const o = n >= 1 ? vByNum(n) : null;
+      if (o) { cur = { o, acts: [] }; steps.push(cur); } else unk++;
+      continue;
+    }
+    const st = VST.find(([re]) => re.test(t));
+    if (st) { if (cur) cur.acts.push(st[1]); else unk++; continue; }
+    if (t in VGR) { if (cur) cur.acts.push(gradeAct(VGR[t])); else unk++; continue; }
+    const m = vMatch(t, nx && nx.n == null ? nx.t : null);
+    if (m) { if (m.two) i++; cur = { o: m.o, acts: [] }; steps.push(cur); continue; }
+    unk++;
   }
-  flush();
-  if (done.length) {
+  return { all, steps, unk, text };
+}
+const vScore = r => (r.all ? 50 : 0) + r.steps.reduce((s, x) => s + (x.acts.length ? 10 : 2), 0) - r.unk;
+// Google bergan variantlardan eng yaxshisini tanlab qo'llash
+function applyVoice(alts) {
+  if (!att) return;
+  alts = (Array.isArray(alts) ? alts : [alts]).filter(Boolean);
+  const res = alts.map(vParse).sort((a, b) => vScore(b) - vScore(a))[0];
+  if (!res) return;
+  const done = [], hit = [];
+  if (res.all) { att.oquvchilar.forEach(o => { if (!o.s) o.s = '+'; }); done.push('hammasi keldi'); }
+  res.steps.forEach(st => {
+    const nm = (st.o.n ? st.o.n + '. ' : '') + st.o.name.split(' ').slice(0, 2).join(' ');
+    if (!st.acts.length) { done.push(nm + ' → ? («keldi», «yo\'q», «besh»… deng)'); return; }
+    const labels = st.acts.map(f => f(st.o)); hit.push(st.o); done.push(nm + ' → ' + labels.join(', '));
+  });
+  if (res.all || hit.length) {
     att.oquvchilar.forEach(o => { if (o.s === '-' || o.s === 's' || o.s === '') { o.f = false; o.q = false; } });
     att.dirty = att.touched = true; saveQF(); saveDraft(); drawAtt();
-    $('#voiceAp').textContent = '✓ ' + done.join(' · ');
+    hit.forEach(o => { const c = $('#stuList').querySelector(`.stu[data-i="${att.oquvchilar.indexOf(o)}"]`); if (c) { c.classList.add('vflash'); if (hit.length === 1) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); } });
     if (navigator.vibrate) navigator.vibrate(40);
-  } else $('#voiceAp').textContent = "Tushunmadim — familiyani aniqroq ayting";
+  }
+  $('#voiceAp').textContent = done.length ? '✓ ' + done.join(' · ') : "Tushunmadim — familiya yoki raqamni aniqroq ayting (masalan: «12 yo'q»)";
+  $('#voiceAp').classList.toggle('bad', !hit.length && !res.all);
 }
-function stopVoice() { recOn = false; try { rec && rec.stop(); } catch (e) {} $('#voiceBtn').classList.remove('on'); $('#voiceBtn').textContent = '🎤 Ovoz'; }
+function stopVoice() {
+  recOn = false; clearTimeout(recT);
+  try { rec && rec.abort(); } catch (e) {}
+  $('#voiceBtn').classList.remove('on'); $('#voiceBtn').textContent = '🎤 Ovoz';
+}
+const VERR = { 'no-speech': "Ovoz eshitilmadi — mikrofonga yaqinroq gapiring", 'audio-capture': "Mikrofon topilmadi — ulanganini tekshiring", network: "Internet yo'q — ovozni tanish uchun internet kerak", 'not-allowed': "Mikrofonga ruxsat berilmagan — manzil satridagi 🔒 belgisidan «Mikrofon: ruxsat»ni tanlang", 'service-not-allowed': "Brauzer ovozli kiritishga ruxsat bermadi", 'language-not-supported': "Bu til qo'llab-quvvatlanmaydi — boshqa tilni tanlang" };
+function startRec() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  rec = new SR(); rec.lang = recLang; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
+  rec.onstart = () => { $('#voiceTr').textContent = recLang.startsWith('ru') ? 'Слушаю… (по-русски)' : 'Eshityapman… gapiring'; };
+  rec.onresult = e => {
+    recErrs = 0; let inter = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) { const alts = Array.from({ length: r.length }, (_, k) => (r[k].transcript || '').trim()).filter(Boolean); $('#voiceTr').textContent = alts[0] || '…'; applyVoice(alts); }
+      else inter += r[0].transcript;
+    }
+    if (inter.trim()) $('#voiceTr').textContent = inter.trim() + ' …';
+  };
+  rec.onerror = e => {
+    if (e.error === 'aborted') return;
+    const msg = VERR[e.error] || ('Xato: ' + e.error);
+    if (e.error !== 'no-speech') { $('#voiceAp').textContent = '⚠ ' + msg; $('#voiceAp').classList.add('bad'); }
+    if (/not-allowed|audio-capture|language-not-supported/.test(e.error)) { toast(msg, 4500); stopVoice(); }
+    else if (e.error === 'network' && ++recErrs >= 3) { toast(msg, 4500); stopVoice(); }
+  };
+  rec.onend = () => { if (recOn) { clearTimeout(recT); recT = setTimeout(() => { if (recOn) { try { startRec(); } catch (e) {} } }, 250); } };   // Chrome o'zi to'xtatsa — davom ettiramiz
+  rec.start();
+}
 $('#voiceBtn').onclick = () => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return toast("Bu brauzerda ovozli kiritish yo'q — Chrome yoki Safari'da oching", 3500);
   if (recOn) return stopVoice();
   if (!att) return;
-  rec = new SR(); rec.lang = 'uz-UZ'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
-  rec.onresult = e => {
-    let fin = '', inter = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) fin += t + ' '; else inter += t; }
-    $('#voiceTr').textContent = (fin || inter).trim() || '…';
-    if (fin.trim() && att) applyVoice(fin);
-  };
-  rec.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { toast('Mikrofonga ruxsat bering (brauzer sozlamalari)', 3500); stopVoice(); } else if (e.error === 'language-not-supported') { rec.lang = 'ru-RU'; } };
-  rec.onend = () => { if (recOn) { try { rec.start(); } catch (e) {} } };
-  recOn = true; $('#voiceBar').classList.remove('hide'); $('#voiceBtn').classList.add('on'); $('#voiceBtn').textContent = '⏹ To\'xtatish'; $('#voiceAp').textContent = '';
-  try { rec.start(); } catch (e) { toast(e.message); stopVoice(); }
+  recOn = true; recErrs = 0; $('#voiceBar').classList.remove('hide'); $('#voiceBtn').classList.add('on'); $('#voiceBtn').textContent = '⏹ To\'xtatish';
+  $('#voiceAp').textContent = ''; $('#voiceAp').classList.remove('bad'); $('#voiceLang').textContent = recLang.startsWith('ru') ? 'Til: Русский' : "Til: O'zbek";
+  try { startRec(); } catch (e) { toast(e.message); stopVoice(); }
+};
+$('#voiceLang').onclick = () => {   // o'zbek <-> rus (o'zbekcha yomon tanisa, rus tilida ham sinab ko'rish mumkin)
+  recLang = recLang.startsWith('ru') ? 'uz-UZ' : 'ru-RU'; LS.set('vlang', recLang);
+  $('#voiceLang').textContent = recLang.startsWith('ru') ? 'Til: Русский' : "Til: O'zbek";
+  if (recOn) { try { rec && rec.abort(); } catch (e) {} }   // onend qayta yangi til bilan boshlaydi
 };
 $('#attBack').addEventListener('click', stopVoice);
 $('#saveBtn').addEventListener('click', stopVoice);
