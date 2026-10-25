@@ -12,6 +12,7 @@ Sayt: https://quvonchbek99.github.io/davomat/ · Backend: Google Apps Script "Da
 - **🎤 Ovozli davomat.** Davomat oynasida «Ovoz» tugmasi (Chrome/Safari). Gapiring: «Karimov yo'q», «Saidov kechikdi besh», «Aliyev daftar yo'q», «Ergasheva sababli», «hammasi keldi». Familiya taxminan mos kelsa ham tanib oladi (kirill/lotin farqi yo'q); natija pastda yozib boriladi, qoralama avto-saqlanadi.
 - **O'quvchi tarixi.** Karta «⋯» → butun davr belgilarining vaqt chizig'i (sana, +/−/S/K, baho, daftarsiz — binafsha hoshiya).
 - **⬇ Excel hisobot.** Hisobot bo'limida: guruh uchun (Jami · Kunlar · Kelmaganlar varaqlari) va barcha guruhlar uchun (Umumiy · Xavfli) — tanlangan davr (yillik / semestr / oy / kun) bo'yicha.
+- **📊 Umumiy yillik (davomat oynasida).** Guruh ochilganda «📊 Yillik» tugmasi shu guruhning butun o'quv yili bo'yicha natijasini ko'rsatadi: jami ko'rsatkichlar, oylar bo'yicha davomat %, har o'quvchi (keldi / kelmadi / sababli / kechikdi / daftarsiz / o'rtacha baho / %) va kunlar bo'yicha jadval. Semestr yoki oy tanlash va Excel'ga yuklab olish mumkin.
 - **➕ O'quvchi qo'shish.** Guruh jurnalining oxiriga yangi qator qo'shadi (T/r, F.I.Sh., formulalar nusxalanadi).
 
 ### Apps Script'ni yangilash (yetakchi/izoh va o'quvchi qo'shish uchun shart)

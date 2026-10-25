@@ -97,6 +97,13 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 
 /* ---------- attendance ---------- */
 #att{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding-bottom:140px}
+#yil{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding-bottom:40px}
+.oystrip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin-bottom:10px}
+.oyc{flex:0 0 auto;min-width:104px;background:var(--card);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);text-align:left}
+.oyc .m{font-size:12px;font-weight:700;color:var(--muted)}
+.oyc b{display:block;font-size:18px;font-weight:800;margin:2px 0}
+.oyc .bar{height:5px;margin:4px 0}
+.oyc small{font-size:11px;color:var(--muted);font-weight:600}
 .atthead{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .atthead .topin{padding-bottom:8px}
 .atttitle{font-weight:800;font-size:18px}
@@ -306,6 +313,7 @@ th.l{z-index:3}
     </div>
     <div class="tools">
       <button class="btn btn-ghost" id="allHere">Hammasi keldi</button>
+      <button class="btn btn-ghost" id="yilBtn" style="background:var(--pri);color:#fff">📊 Yillik</button>
       <button class="btn btn-ghost hide" id="fotoBtn" style="background:#f3e5f5;color:#8e24aa">📷 Guruh rasmi</button>
       <input type="file" id="fotoInp" accept="image/*" class="hide">
       <button class="btn btn-ghost hide" id="tgSend" style="background:#e3f2fd;color:#1e88e5">Telegramga</button>
@@ -358,6 +366,18 @@ th.l{z-index:3}
     <button class="btn btn-pri" style="flex:1">Saqlash</button></div>
   </form>
 </div>
+<!-- ================= UMUMIY YILLIK (davomat oynasidan) ================= -->
+<section id="yil" class="hide">
+  <div class="atthead">
+    <div class="topin">
+      <button class="iconbtn" id="yilBack" aria-label="Orqaga"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div style="min-width:0"><div class="atttitle" id="yilTitle"></div><div class="attsub" id="yilSub"></div></div>
+      <div class="sp"></div>
+      <button class="btn btn-ghost" id="yilXls" style="background:#e3f7e9;color:#1e7e34;padding:9px 12px;font-size:13px;white-space:nowrap;flex-shrink:0">⬇ Excel</button>
+    </div>
+  </div>
+  <div class="wrap" id="yilBody" style="padding-top:12px"></div>
+</section>
 <div class="toast" id="toast"></div>
 <div id="bild" class="hide">
   <div class="bbar">
@@ -1199,16 +1219,35 @@ function repSum(S) {
 const pct = t => t.all ? Math.round(t.k / t.all * 1000) / 10 : null;
 const avgB = t => t.n ? Math.round(t.sum / t.n * 10) / 10 : null;
 // Davr tanlash paneli
-function perBar(months) {
-  const b = (v, t) => `<button data-per="${v}" class="${repPer === v ? 'on' : ''}">${t}</button>`;
+function perBar(months, cur = repPer) {
+  const b = (v, t) => `<button data-per="${v}" class="${cur === v ? 'on' : ''}">${t}</button>`;
   const ms = months && months.length ? months : [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
-  const isOy = repPer.startsWith('oy:'), isKun = repPer.startsWith('kun:');
+  const isOy = cur.startsWith('oy:'), isKun = cur.startsWith('kun:');
   return `<div class="perbar"><div class="seltabs" style="margin:0">${b('jami', 'Yillik')}${b('sem1', '1-semestr')}${b('sem2', '2-semestr')}</div>
-    <select id="perOy" class="${isOy ? 'on' : ''}"><option value="">Oylik…</option>${ms.map(m => `<option value="oy:${m}" ${repPer === 'oy:' + m ? 'selected' : ''}>${OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1)}</option>`).join('')}</select>
-    <input type="date" id="perKun" class="${isKun ? 'on' : ''}" value="${isKun ? repPer.slice(4) : ''}" title="Kunlik"></div>`;
+    <select id="perOy" class="${isOy ? 'on' : ''}"><option value="">Oylik…</option>${ms.map(m => `<option value="oy:${m}" ${cur === 'oy:' + m ? 'selected' : ''}>${OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1)}</option>`).join('')}</select>
+    <input type="date" id="perKun" class="${isKun ? 'on' : ''}" value="${isKun ? cur.slice(4) : ''}" title="Kunlik"></div>`;
 }
-function bindPer(box) {
-  const set = v => { if (!v) return; repPer = v; LS.set('repPer', v); renderReport(); };
+// Hisobot bloklari (Natijalar bo'limi va davomat oynasidagi «Yillik» uchun umumiy)
+function repStatsHtml(S, j, tot) {
+  return `<div class="stats"><div class="stat"><b>${S.length}</b><span>O'quvchilar</span></div><div class="stat"><b>${j.sanalar.length}</b><span>Darslar</span></div>
+    <div class="stat"><b>${pct(tot) ?? '—'}%</b><span>Davomat</span></div><div class="stat"><b>${avgB(tot) ?? '—'}</b><span>O'rtacha baho</span></div>
+    <div class="stat"><b style="color:var(--no)">${tot.yoq}</b><span>Kelmadi (sababsiz)</span></div><div class="stat"><b style="color:var(--sab)">${tot.sab}</b><span>Sababli</span></div>
+    <div class="stat"><b style="color:var(--late)">${tot.kech}</b><span>Kechikdi</span></div><div class="stat"><b style="color:var(--daf)">${tot.f}</b><span>Daftar yo'q</span></div></div>`;
+}
+function repTableHtml(j, mode) {
+  const S = j.oquvchilar;
+  if (!j.sanalar.length) return `<div class="empty"><b>Bu davrda dars yo'q</b>Boshqa davrni tanlang</div>`;
+  if (mode === 'jami') {
+    return `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th><th>Keldi</th><th>Kelmadi</th><th>Sababli</th><th>Kechikdi</th><th>Daftar yo'q</th><th>O'rtacha</th><th>%</th></tr></thead><tbody>` +
+      S.map(o => { const all = o.keldi + o.kechikdi + o.kelmadi + o.sababli; const p = all ? Math.round((o.keldi + o.kechikdi) / all * 100) : '—';
+        return `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td><td class="c-ok">${o.keldi}</td><td class="${o.kelmadi ? 'c-no' : ''}">${o.kelmadi}</td><td class="${o.sababli ? 'c-s' : ''}">${o.sababli}</td><td class="${o.kechikdi ? 'c-k' : ''}">${o.kechikdi}</td><td class="${o.daftarsiz ? 'c-d' : ''}">${o.daftarsiz}</td><td><b>${o.ortacha ?? '—'}</b></td><td>${p}${p === '—' ? '' : '%'}</td></tr>`; }).join('') + '</tbody></table></div>';
+  }
+  const cell = ([s, b]) => { s = String(s || ''); const c = { '+': 'c-ok', '-': 'c-no', 's': 'c-s', 'k': 'c-k' }[s.replace('d', '')] || ''; return `<td class="${s.includes('d') ? 'c-d' : c}">${esc(s.replace('-', '−'))}${b !== '' && b != null ? ' <b style="color:var(--ink)">' + esc(b) + '</b>' : ''}</td>`; };
+  return `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th>${j.sanalar.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>` +
+    S.map(o => `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>${o.belgilar.map(cell).join('')}</tr>`).join('') + '</tbody></table></div>';
+}
+function bindPer(box, onSet) {
+  const set = v => { if (!v) return; if (onSet) return onSet(v); repPer = v; LS.set('repPer', v); renderReport(); };
   box.querySelectorAll('[data-per]').forEach(b => b.onclick = () => set(b.dataset.per));
   const o = box.querySelector('#perOy'); if (o) o.onchange = () => set(o.value);
   const k = box.querySelector('#perKun'); if (k) k.onchange = () => set(k.value ? 'kun:' + k.value : '');
@@ -1232,10 +1271,10 @@ function xlsSheet(wb, name, rows, widths) {
   XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
 }
 const fnSafe = t => String(t).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_');
-async function xlsGroup(g, nomi, j, tot) {
+async function xlsGroup(g, nomi, j, tot, perLabel) {
   try {
     await loadXLSX();
-    const S = j.oquvchilar, per = perName(repPer), wb = XLSX.utils.book_new();
+    const S = j.oquvchilar, per = perLabel || perName(repPer), wb = XLSX.utils.book_new();
     const nm = o => o.name;
     const p = o => { const all = o.keldi + o.kechikdi + o.kelmadi + o.sababli; return all ? Math.round((o.keldi + o.kechikdi) / all * 100) : ''; };
     xlsSheet(wb, 'Jami', [
@@ -1320,21 +1359,9 @@ async function renderReport() {
       ${gi.url ? `<a class="btn btn-ghost" href="${esc(gi.url)}" target="_blank" rel="noopener">Sheets</a>` : ''}</div>
       ${perBar(months)}
       <div class="small" style="margin:-4px 0 10px">Davr: <b>${esc(perName(repPer))}</b></div>
-      <div class="stats"><div class="stat"><b>${S.length}</b><span>O'quvchilar</span></div><div class="stat"><b>${j.sanalar.length}</b><span>Darslar</span></div>
-      <div class="stat"><b>${pct(tot) ?? '—'}%</b><span>Davomat</span></div><div class="stat"><b>${avgB(tot) ?? '—'}</b><span>O'rtacha baho</span></div>
-      <div class="stat"><b style="color:var(--no)">${tot.yoq}</b><span>Kelmadi (sababsiz)</span></div><div class="stat"><b style="color:var(--sab)">${tot.sab}</b><span>Sababli</span></div>
-      <div class="stat"><b style="color:var(--late)">${tot.kech}</b><span>Kechikdi</span></div><div class="stat"><b style="color:var(--daf)">${tot.f}</b><span>Daftar yo'q</span></div></div>
+      ${repStatsHtml(S, j, tot)}
       <div class="seltabs"><button data-m="jami" class="${repMode === 'jami' ? 'on' : ''}">Jami</button><button data-m="kunlar" class="${repMode === 'kunlar' ? 'on' : ''}">Kunlar bo'yicha</button></div>`;
-    if (!j.sanalar.length) h += `<div class="empty"><b>Bu davrda dars yo'q</b>Boshqa davrni tanlang</div>`;
-    else if (repMode === 'jami') {
-      h += `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th><th>Keldi</th><th>Kelmadi</th><th>Sababli</th><th>Kechikdi</th><th>Daftar yo'q</th><th>O'rtacha</th><th>%</th></tr></thead><tbody>` +
-        S.map(o => { const all = o.keldi + o.kechikdi + o.kelmadi + o.sababli; const p = all ? Math.round((o.keldi + o.kechikdi) / all * 100) : '—';
-          return `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td><td class="c-ok">${o.keldi}</td><td class="${o.kelmadi ? 'c-no' : ''}">${o.kelmadi}</td><td class="${o.sababli ? 'c-s' : ''}">${o.sababli}</td><td class="${o.kechikdi ? 'c-k' : ''}">${o.kechikdi}</td><td class="${o.daftarsiz ? 'c-d' : ''}">${o.daftarsiz}</td><td><b>${o.ortacha ?? '—'}</b></td><td>${p}${p === '—' ? '' : '%'}</td></tr>`; }).join('') + '</tbody></table></div>';
-    } else {
-      const cell = ([s, b]) => { s = String(s || ''); const c = { '+': 'c-ok', '-': 'c-no', 's': 'c-s', 'k': 'c-k' }[s.replace('d', '')] || ''; return `<td class="${s.includes('d') ? 'c-d' : c}">${esc(s.replace('-', '−'))}${b !== '' && b != null ? ' <b style="color:var(--ink)">' + esc(b) + '</b>' : ''}</td>`; };
-      h += `<div class="tblwrap"><table><thead><tr><th class="l">F.I.Sh.</th>${j.sanalar.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>` +
-        S.map(o => `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>${o.belgilar.map(cell).join('')}</tr>`).join('') + '</tbody></table></div>';
-    }
+    h += repTableHtml(j, repMode);
     box.innerHTML = h;
     $('#repBack').onclick = () => { repGroup = null; renderReport(); };
     $('#xlsG').onclick = () => xlsGroup(repGroup, gi.nomi || '', j, tot);
@@ -1352,6 +1379,51 @@ async function renderReport() {
     if (curView === 'report' && repGroup === myG && repPer === myPer) drawG(j);
   } catch (e) { if (!cached) box.innerHTML += `<div class="empty"><b>Xatolik</b>${esc(e.message)}</div>`; }
 }
+
+/* ---------- UMUMIY YILLIK (davomat oynasidagi «📊 Yillik» tugmasi) ---------- */
+let yilG = null, yilPer = 'jami', yilMode = 'jami', yilData = null, yilSeq = 0;
+const oyNomi = m => OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1);
+function openYil() {
+  if (!att) return;
+  const g = att.guruh, gi = INIT.guruhlar.find(x => x.id === g) || {}, my = ++yilSeq;
+  yilG = g; yilPer = 'jami'; yilData = null;
+  $('#yilTitle').textContent = g + ' guruh — umumiy yillik';
+  $('#yilSub').textContent = gi.nomi || '';
+  $('#yil').classList.remove('hide'); $('#yil').scrollTop = 0;
+  const cached = repCache[g] || LS.get('rep|' + g, null);
+  if (cached) drawYil(cached); else $('#yilBody').innerHTML = '<div class="spin"></div>';
+  getRep(g, true).then(j => { if (my === yilSeq && !$('#yil').classList.contains('hide')) drawYil(j); })
+    .catch(e => { if (my === yilSeq && !yilData) $('#yilBody').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; });
+}
+function drawYil(j0) {
+  yilData = j0;
+  const box = $('#yilBody'), j = repFilter(j0, yilPer), S = j.oquvchilar, tot = repSum(S);
+  const months = [...new Set(j0.sanalar.map(s => { const d = repDate(s); return d ? d.getMonth() + 1 : null; }).filter(Boolean))];
+  let h = perBar(months, yilPer) +
+    `<div class="small" style="margin:-4px 0 10px">Davr: <b>${esc(perName(yilPer))}</b> · Google Sheets'ga saqlangan belgilar bo'yicha</div>` +
+    repStatsHtml(S, j, tot);
+  // Oylar kesimi: har oyda nechta dars, davomat % va o'rtacha baho (oyni bosib, shu oyni ochish mumkin)
+  const ms = months.filter(m => perMatch(new Date(2026, m - 1, 15), yilPer));
+  if (ms.length > 1 && !yilPer.startsWith('kun:')) {
+    h += `<h2 class="sec" style="margin-top:6px">Oylar bo'yicha</h2><div class="oystrip">` + ms.map(m => {
+      const f = repFilter(j0, 'oy:' + m), t = repSum(f.oquvchilar), p = pct(t);
+      return `<button class="oyc" data-oym="${m}"><div class="m">${oyNomi(m)}</div><b>${p ?? '—'}%</b><div class="bar"><i style="width:${p ?? 0}%"></i></div><small>${f.sanalar.length} dars · baho ${avgB(t) ?? '—'}</small></button>`;
+    }).join('') + '</div>';
+  }
+  h += `<div class="seltabs"><button data-ym="jami" class="${yilMode === 'jami' ? 'on' : ''}">Jami (o'quvchilar)</button><button data-ym="kunlar" class="${yilMode === 'kunlar' ? 'on' : ''}">Kunlar bo'yicha</button></div>` +
+    repTableHtml(j, yilMode);
+  box.innerHTML = h;
+  bindPer(box, v => { yilPer = v; drawYil(yilData); });
+  box.querySelectorAll('[data-ym]').forEach(b => b.onclick = () => { yilMode = b.dataset.ym; drawYil(yilData); });
+  box.querySelectorAll('[data-oym]').forEach(b => b.onclick = () => { yilPer = 'oy:' + b.dataset.oym; drawYil(yilData); });
+}
+$('#yilBtn').onclick = openYil;
+$('#yilBack').onclick = () => { $('#yil').classList.add('hide'); yilSeq++; };
+$('#yilXls').onclick = () => {
+  if (!yilData) return toast("Ma'lumot hali yuklanmadi");
+  const gi = INIT.guruhlar.find(x => x.id === yilG) || {}, j = repFilter(yilData, yilPer);
+  xlsGroup(yilG, gi.nomi || '', j, repSum(j.oquvchilar), perName(yilPer));
+};
 
 /* ---------- OYLIK KALENDAR ---------- */
 let oyCur = null, oySel = null;
