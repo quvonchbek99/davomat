@@ -447,7 +447,7 @@ th.l{z-index:3}
     <button class="dbtn" data-jd>Daftar yo'q</button>
     <button class="dbtn" data-jclr>Tozalash</button>
   </div>
-  <div class="jsm" id="jedSm"><span class="jdg">Belgilash:</span><button class="jdg" data-jsm="">▦ To'liq</button><button class="jdg" data-jsm="d" title="Har bir qatorda bittadan katak — chapdan o'ngga pastga">↘ Diagonal</button><button class="jdg" data-jsm="a" title="Har bir qatorda bittadan katak — o'ngdan chapga pastga">↙ Teskari diagonal</button><button data-jall title="Butun jadvalni belgilash (Ctrl+A)">⬚ Hammasini belgilash</button></div>
+  <div class="jsm" id="jedSm"><span class="jdg">Belgilash:</span><button class="jdg" data-jsm="">▦ To'liq</button><button class="jdg" data-jsm="d" title="Har bir qatorda bittadan katak — chapdan o'ngga pastga">↘ Diagonal</button><button class="jdg" data-jsm="a" title="Har bir qatorda bittadan katak — o'ngdan chapga pastga">↙ Teskari</button><button class="jdg" data-jsn="2" title="Belgilangan joy 2×2 kvadratlarga bo'linadi, har birida diagonal (shaxmat tartibi)">2×2</button><button class="jdg" data-jsn="3" title="3×3 kvadratlar bo'yicha diagonal">3×3</button><button class="jdg" data-jsn="4" title="4×4 kvadratlar bo'yicha diagonal">4×4</button><button data-jall title="Butun jadvalni belgilash (Ctrl+A)">⬚ Hammasi</button></div>
   <div class="jednav"><button class="btn btn-ghost" data-jn="-1">↑ Oldingi o'quvchi</button><button class="btn btn-ghost" data-jn="1">Keyingi o'quvchi ↓</button></div>
 </div></div>
 <div class="toast" id="toast"></div>
@@ -1464,6 +1464,7 @@ let yilCopied = null;    // nusxalangan ustun (kalit) yoki kataklar (Set «si|is
 let yilRng = null;       // belgilangan kataklar (Excel'dagidek): {a: {si, iso} — boshlang'ich (faol katak), b: {si, iso} — oxirgi}
 let yilDrag = null;      // sichqoncha bilan surib belgilash davom etmoqda
 let yilDiag = '';        // belgilangan to'rtburchakdan faqat diagonal: '' — to'liq, 'd' — ↘ diagonal, 'a' — ↙ teskari diagonal
+let yilDiagN = 0;        // diagonal bloki: 0 — avtomatik (har qatorda bittadan), 2/3/4 — N×N bloklar bo'yicha (2×2 — shaxmat tartibi)
 let yilClipBuf = null;   // sayt ichida nusxalangan qiymatlar (daftar belgisi bilan) — Ctrl+V da aynan shu qo'yiladi
 const yilUndo = [];      // Ctrl+Z uchun: yilEdits'ning oldingi holatlari
 const yilExtra = new Set();   // jadvaldan tashqari qo'shilgan sanalar (YYYY-MM-DD)
@@ -1545,7 +1546,7 @@ function yilGridHtml(J) {
   const bar = csel ? `<div class="jcolbar"><span><b>${isD ? esc(yilDFull(csel)) : csel === 'name' ? 'F.I.Sh.' : "O'rt."}</b> ustuni tanlandi</span>
     <button data-cact="copy">📋 Nusxalash <kbd>Ctrl+C</kbd></button>${isD ? `<button data-cact="paste">📥 Qo'yish <kbd>Ctrl+V</kbd></button><button data-cact="clr">🧹 Tozalash <kbd>Del</kbd></button>` : ''}
     <button data-cact="x" title="Tanlovni olib tashlash (Esc)">✕</button></div>` : '';
-  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Excel'dagidek: katakni bosing yoki <b>surib belgilang</b> → <b>2 3 4 5</b>, <b>+ − S K</b>, Delete. Panelda <b>↘ Diagonal</b> — har qatorda bittadan katak. <b>■</b> ni tortib — to'ldirish, ichkariga — o'chirish. Sana ustiga bosing — butun ustun. Ctrl+C / V / Z / A.</div>
+  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Excel'dagidek: katakni bosing yoki <b>surib belgilang</b> → <b>2 3 4 5</b>, <b>+ − S K</b>, Delete. Panelda <b>↘ Diagonal</b>, <b>2×2</b>, <b>3×3</b> — faqat diagonal kataklar. <b>■</b> ni tortib — to'ldirish, ichkariga — o'chirish. Sana ustiga bosing — butun ustun. Ctrl+C / V / Z / A.</div>
     <div class="jcp" title="Jadvalni Excel / Google Sheets / Word'ga qo'yish uchun nusxalash"><select id="yilCpM" title="Nima nusxalansin">${cpm('bb', 'Belgi + baho')}${cpm('b', 'Faqat baho')}${cpm('d', 'Faqat davomat')}</select><button id="yilCp">📋 Jadvalni nusxalash</button></div>
     <button class="jallb" id="yilAll" title="Butun jadvalni belgilash (Ctrl+A)">⬚ Hammasini belgilash</button>
     <label class="jadd" title="Jadvalda yo'q kunni qo'shish">➕ Sana <input type="date" id="yilAdd" min="${YIL_BOSH}" max="${today}"></label></div>
@@ -1601,8 +1602,10 @@ const yilRectN = R => (R.r2 - R.r1 + 1) * (R.c2 - R.c1 + 1);
 const yilInRect = (R, si, iso) => { const c = R.vis.indexOf(iso); return si >= R.r1 && si <= R.r2 && c >= R.c1 && c <= R.c2; };
 // Diagonal (yilDiag: 'd' — ↘, 'a' — ↙): har bir qatorda bittadan katak. Kvadratda (4×4, 3×3) — oddiy diagonal;
 // qatorlar ko'p bo'lsa diagonal pastga qarab takrorlanadi (har o'quvchiga bittadan), ustunlar ko'p bo'lsa — o'ngga
-function yilOnDiag(R, si, c, dg = yilDiag) {
-  const h = R.r2 - R.r1 + 1, w = R.c2 - R.c1 + 1, i = si - R.r1, j = dg === 'a' ? R.c2 - c : c - R.c1;
+function yilOnDiag(R, si, c, dg = yilDiag, n = yilDiagN) {
+  const h = R.r2 - R.r1 + 1, w = R.c2 - R.c1 + 1, i = si - R.r1;
+  if (n) { const a = i % n, b = (c - R.c1) % n; return dg === 'a' ? a === n - 1 - b : a === b; }   // N×N bloklar: har blokda o'z diagonali
+  const j = dg === 'a' ? R.c2 - c : c - R.c1;
   return h >= w ? j === i % w : i === j % h;
 }
 const yilInSel = (R, si, iso, dg = yilDiag) => yilInRect(R, si, iso) && (!dg || yilOnDiag(R, si, R.vis.indexOf(iso), dg));
@@ -1610,7 +1613,7 @@ function yilRectCells(R, dg = yilDiag) { const out = []; for (let r = R.r1; r <=
 // Butun jadvalni belgilash (Ctrl+A / «Hammasini belgilash»)
 function yilSelAll() {
   const vis = yilIdx(yilJ).map(i => yilJ.iso[i]), last = yilJ.oquvchilar.length - 1; if (!vis.length || last < 0) return;
-  yilColSel = null; yilDiag = ''; jedOpen(0, vis[0], { a: { si: 0, iso: vis[0] }, b: { si: last, iso: vis[vis.length - 1] } }, true);
+  yilColSel = null; yilDiag = ''; yilDiagN = 0; jedOpen(0, vis[0], { a: { si: 0, iso: vis[0] }, b: { si: last, iso: vis[vis.length - 1] } }, true);
 }
 // Surish paytida jadvalni qayta chizmasdan faqat belgilarni yangilash
 function yilPaintSel() {
@@ -1626,7 +1629,7 @@ function yilPaintSel() {
 // Sana ustunini bosish — butun ustun belgilanadi (tugmalar / 2–5 hammasiga), F.I.Sh. / O'rt. — faqat nusxalash uchun
 function yilSelCol(key) {
   const vis = yilIdx(yilJ).map(i => yilJ.iso[i]), last = yilJ.oquvchilar.length - 1;
-  yilDiag = '';
+  yilDiag = ''; yilDiagN = 0;
   if (vis.includes(key) && last >= 0) { yilColSel = key; return jedOpen(0, key, { a: { si: 0, iso: key }, b: { si: last, iso: key } }); }
   jedClose(); yilColSel = key; drawYil();
 }
@@ -1643,7 +1646,7 @@ $('#yilBody').addEventListener('mousedown', e => {
   e.preventDefault();
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   if (e.shiftKey && jedSel && !$('#jed').classList.contains('hide')) { yilColSel = null; return jedOpen(jedSel.si, jedSel.iso, { a: { ...jedSel }, b: { si, iso } }, true); }
-  yilDrag = { si, iso }; yilRng = null; yilColSel = null; yilDiag = ''; jedSel = { si, iso }; yilPaintSel();
+  yilDrag = { si, iso }; yilRng = null; yilColSel = null; yilDiag = ''; yilDiagN = 0; jedSel = { si, iso }; yilPaintSel();
 });
 $('#yilBody').addEventListener('mouseover', e => {
   if (!yilDrag) return;
@@ -1742,23 +1745,25 @@ $('#yilBody').addEventListener('dblclick', e => {
 function jedCur() { const o = yilJ.oquvchilar[jedSel.si], i = yilJ.iso.indexOf(jedSel.iso), [c, b] = o.belgilar[i] || ['', '']; const cc = String(c || ''); return { o, i, s: cc.replace('d', ''), d: cc.includes('d'), b: b ?? '' }; }
 // jedOpen(si, iso) — bitta katak; rng berilsa — to'rtburchak (si/iso — faol katak)
 function jedOpen(si, iso, rng = null, noScroll = false) {
-  jedSel = { si, iso }; yilRng = rng; if (!rng) { yilColSel = null; yilDiag = ''; }
+  jedSel = { si, iso }; yilRng = rng; if (!rng) { yilColSel = null; yilDiag = ''; yilDiagN = 0; }
   $('#jed').classList.remove('hide'); $('#yil').classList.add('jedopen');
   drawYil(); jedDraw();
   if (noScroll) return;
   const t = rng && !yilColSel ? rng.b : jedSel;
   const td = $('#yilBody').querySelector(`[data-jc="${t.si}|${t.iso}"]`); if (td && !(rng && yilColSel)) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
-function jedClose() { jedSel = null; yilRng = null; yilDiag = ''; $('#jed').classList.add('hide'); $('#yil').classList.remove('jedopen'); }
+function jedClose() { jedSel = null; yilRng = null; yilDiag = ''; yilDiagN = 0; $('#jed').classList.add('hide'); $('#yil').classList.remove('jedopen'); }
 const dm = d => d.slice(8) + '.' + d.slice(5, 7);
 function jedDraw() {
   if (!jedSel) return;
   const R = yilRect(), cells = R ? yilRectCells(R) : [], many = R && yilRectN(R) > 1;
   $('#jedSm').querySelectorAll('.jdg').forEach(x => x.style.display = many ? '' : 'none');   // diagonal tugmalari — bir nechta katak belgilanganda
   $('#jedSm').querySelectorAll('[data-jsm]').forEach(x => x.classList.toggle('on', x.dataset.jsm === yilDiag));
+  $('#jedSm').querySelectorAll('[data-jsn]').forEach(x => x.classList.toggle('on', !!yilDiag && +x.dataset.jsn === yilDiagN));
   if (many) {   // bir nechta katak belgilangan
     const vals = cells.map(c => yilCell(c.o.belgilar[yilJ.iso.indexOf(c.iso)])), nr = R.r2 - R.r1 + 1, nc = R.c2 - R.c1 + 1;
-    $('#jedName').textContent = `${cells.length} ta katak belgilandi` + (yilDiag === 'd' ? ' (↘ diagonal)' : yilDiag === 'a' ? ' (↙ teskari diagonal)' : '');
+    const nn = yilDiagN ? `${yilDiagN}×${yilDiagN} ` : '';
+    $('#jedName').textContent = `${cells.length} ta katak belgilandi` + (yilDiag === 'd' ? ` (${nn}↘ diagonal)` : yilDiag === 'a' ? ` (${nn}↙ teskari diagonal)` : '');
     $('#jedDate').textContent = (nc === 1 ? human(R.vis[R.c1]) : `${dm(R.vis[R.c1])} – ${dm(R.vis[R.c2])} (${nc} kun)`) + ` · ${nr} o'quvchi · tugma hammasiga qo'yiladi`;
     $('#jed').querySelectorAll('[data-js]').forEach(x => x.classList.toggle('on', vals.every(v => v.s === x.dataset.js)));
     $('#jed').querySelectorAll('[data-jb]').forEach(x => x.classList.toggle('on', vals.every(v => v.b !== '' && Number(v.b) === +x.dataset.jb)));
@@ -1781,9 +1786,12 @@ $('#jed').addEventListener('click', e => {
     return jedOpen(n, jedSel.iso);
   }
   if (btn.dataset.jall !== undefined) return yilSelAll();
-  if (btn.dataset.jsm !== undefined) {   // to'liq / diagonal / teskari diagonal
-    yilDiag = btn.dataset.jsm; yilColSel = null; drawYil(); jedDraw();
-    if (yilDiag) toast("Endi faqat diagonaldagi kataklar belgilangan — 2–5, + − S K yoki Tozalash (Delete) faqat ularga qo'llanadi", 3500);
+  if (btn.dataset.jsm !== undefined || btn.dataset.jsn !== undefined) {   // to'liq / diagonal / teskari diagonal / N×N bloklar
+    if (btn.dataset.jsm !== undefined) { yilDiag = btn.dataset.jsm; if (!yilDiag) yilDiagN = 0; }
+    else { const n = +btn.dataset.jsn; yilDiagN = yilDiag && yilDiagN === n ? 0 : n; if (!yilDiag) yilDiag = 'd'; }   // qayta bosilsa — blok o'chadi
+    yilColSel = null; drawYil(); jedDraw();
+    const cnt = yilRect() ? yilRectCells(yilRect()).length : 0;
+    if (yilDiag) toast(`${yilDiagN ? yilDiagN + '×' + yilDiagN + ' kvadratlar bo\'yicha d' : 'D'}iagonal — ${cnt} ta katak belgilandi. 2–5, + − S K yoki Delete (o'chirish) faqat ularga qo'llanadi`, 3500);
     return;
   }
   const R = yilRect(); if (!R) return;
