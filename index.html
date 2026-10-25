@@ -964,11 +964,40 @@ function stopVoice() {
   try { rec && rec.abort(); } catch (e) {}
   $('#voiceBtn').classList.remove('on'); $('#voiceBtn').textContent = '🎤 Ovoz';
 }
-const VERR = { 'no-speech': "Ovoz eshitilmadi — mikrofonga yaqinroq gapiring", 'audio-capture': "Mikrofon topilmadi — ulanganini tekshiring", network: "Internet yo'q — ovozni tanish uchun internet kerak", 'not-allowed': "Mikrofonga ruxsat berilmagan — manzil satridagi 🔒 belgisidan «Mikrofon: ruxsat»ni tanlang", 'service-not-allowed': "Brauzer ovozli kiritishga ruxsat bermadi", 'language-not-supported': "Bu til qo'llab-quvvatlanmaydi — boshqa tilni tanlang" };
+const VERR = { 'no-speech': "Ovoz eshitilmadi — mikrofonga yaqinroq gapiring", 'audio-capture': "Mikrofon topilmadi — ulanganini tekshiring", network: "Internet yo'q — ovozni tanish uchun internet kerak", 'not-allowed': "Mikrofonga ruxsat berilmagan — manzil satridagi 🔒 (yoki 🎤) belgisini bosib «Mikrofon: Ruxsat berish»ni tanlang, so'ng sahifani yangilang", 'service-not-allowed': "Brauzer ovozli kiritishga ruxsat bermadi", 'language-not-supported': "Bu til qo'llab-quvvatlanmaydi — boshqa tilni tanlang" };
+const vStatus = (msg, bad) => { $('#voiceAp').textContent = msg; $('#voiceAp').classList.toggle('bad', !!bad); };
+// Ovozni tanishdan OLDIN mikrofon ruxsatini aniq so'raymiz: aks holda Chrome ruxsat oynasini kutib jim turib qoladi (xato ham, natija ham yo'q)
+let micOk = false;
+async function ensureMic() {
+  if (micOk || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  let st = '';
+  try { st = (await navigator.permissions.query({ name: 'microphone' })).state; } catch (e) {}
+  if (st === 'granted') { micOk = true; return; }
+  if (st === 'denied') throw new Error(VERR['not-allowed']);
+  $('#voiceTr').textContent = '🎤 Mikrofonga ruxsat kutilmoqda…';
+  vStatus("Ekran tepasida chiqqan oynada «Ruxsat berish» (Allow) tugmasini bosing", false);
+  const hint = setTimeout(() => vStatus("⚠ Ruxsat oynasi ko'rinmayaptimi? Manzil satrining o'ng tomonidagi 🎤 belgisini (yoki chapdagi 🔒 belgisini) bosing → «Mikrofon: Ruxsat berish»", true), 4000);
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach(t => t.stop());
+    micOk = true; vStatus('', false);
+  } catch (e) {
+    const n = e && e.name, m = String(e && e.message || '');
+    if (/system/i.test(m)) throw new Error("Windows mikrofonni yopib qo'ygan: Sozlamalar → Maxfiylik → Mikrofon → «Ilovalarga mikrofondan foydalanishga ruxsat» va Chrome'ni yoqing");
+    if (n === 'NotAllowedError' || n === 'SecurityError') throw new Error(VERR['not-allowed']);
+    if (n === 'NotFoundError' || n === 'OverconstrainedError') throw new Error(VERR['audio-capture']);
+    if (n === 'NotReadableError' || n === 'AbortError') throw new Error("Mikrofonni boshqa dastur band qilgan (Zoom, Telegram qo'ng'irog'i va h.k.) — o'shani yopib qayta urining");
+    throw new Error("Mikrofonni yoqib bo'lmadi (" + (m || n || 'noma\'lum xato') + ") — 🔒 belgisidan mikrofon ruxsatini tekshiring");
+  } finally { clearTimeout(hint); }
+}
 function startRec() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   rec = new SR(); rec.lang = recLang; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
+  const me = rec;
+  // 6 soniyada ham boshlanmasa — foydalanuvchiga nima qilishni aytamiz (avval jim turib qolardi)
+  const wd = setTimeout(() => { if (recOn && rec === me && !me._ok) vStatus("⚠ Mikrofon ishga tushmadi. Ruxsat berilganini tekshiring (🔒 → Mikrofon) yoki ⏹ ni bosib, qayta 🎤 bosing", true); }, 6000);
   rec.onstart = () => { $('#voiceTr').textContent = recLang.startsWith('ru') ? 'Слушаю… (по-русски)' : 'Eshityapman… gapiring'; };
+  rec.onaudiostart = () => { me._ok = true; clearTimeout(wd); if (/Mikrofon ishga tushmadi|Ruxsat oynasi/.test($('#voiceAp').textContent)) vStatus('', false); };
   rec.onresult = e => {
     recErrs = 0; let inter = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -980,22 +1009,30 @@ function startRec() {
   };
   rec.onerror = e => {
     if (e.error === 'aborted') return;
+    me._ok = true; clearTimeout(wd);
+    if (e.error === 'language-not-supported' && !recLang.startsWith('ru')) {   // o'zbekchani tanimasa — avtomatik rus tiliga o'tamiz
+      recLang = 'ru-RU'; LS.set('vlang', recLang); $('#voiceLang').textContent = 'Til: Русский';
+      vStatus("⚠ O'zbek tili bu brauzerda tanilmadi — rus tiliga o'tildi (raqam bilan ayting: «12 нет», «5 пять»)", true); return;   // onend qayta boshlaydi
+    }
     const msg = VERR[e.error] || ('Xato: ' + e.error);
-    if (e.error !== 'no-speech') { $('#voiceAp').textContent = '⚠ ' + msg; $('#voiceAp').classList.add('bad'); }
-    if (/not-allowed|audio-capture|language-not-supported/.test(e.error)) { toast(msg, 4500); stopVoice(); }
+    if (e.error !== 'no-speech') vStatus('⚠ ' + msg, true);
+    if (/not-allowed|audio-capture|language-not-supported/.test(e.error)) { if (/not-allowed/.test(e.error)) micOk = false; toast(msg, 6000); stopVoice(); }
     else if (e.error === 'network' && ++recErrs >= 3) { toast(msg, 4500); stopVoice(); }
   };
-  rec.onend = () => { if (recOn) { clearTimeout(recT); recT = setTimeout(() => { if (recOn) { try { startRec(); } catch (e) {} } }, 250); } };   // Chrome o'zi to'xtatsa — davom ettiramiz
+  rec.onend = () => { clearTimeout(wd); if (recOn && rec === me) { clearTimeout(recT); recT = setTimeout(() => { if (recOn) { try { startRec(); } catch (e) {} } }, 250); } };   // Chrome o'zi to'xtatsa — davom ettiramiz
   rec.start();
 }
-$('#voiceBtn').onclick = () => {
+$('#voiceBtn').onclick = async () => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return toast("Bu brauzerda ovozli kiritish yo'q — Chrome yoki Safari'da oching", 3500);
+  if (!SR) return toast("Bu brauzerda ovozli kiritish yo'q — Chrome, Edge yoki Safari'da oching", 3500);
   if (recOn) return stopVoice();
-  if (!att) return;
+  if (!att) return toast("Avval guruh va darsni oching", 2500);
   recOn = true; recErrs = 0; $('#voiceBar').classList.remove('hide'); $('#voiceBtn').classList.add('on'); $('#voiceBtn').textContent = '⏹ To\'xtatish';
-  $('#voiceAp').textContent = ''; $('#voiceAp').classList.remove('bad'); $('#voiceLang').textContent = recLang.startsWith('ru') ? 'Til: Русский' : "Til: O'zbek";
-  try { startRec(); } catch (e) { toast(e.message); stopVoice(); }
+  $('#voiceTr').textContent = 'Mikrofon yoqilmoqda…';
+  vStatus('', false); $('#voiceLang').textContent = recLang.startsWith('ru') ? 'Til: Русский' : "Til: O'zbek";
+  try { await ensureMic(); } catch (e) { vStatus('⚠ ' + e.message, true); toast(e.message, 6000); stopVoice(); $('#voiceTr').textContent = '🎤 Mikrofon ishlamadi'; return; }
+  if (!recOn) return;   // kutayotganda ⏹ bosilgan bo'lsa
+  try { startRec(); } catch (e) { vStatus('⚠ ' + e.message, true); toast(e.message); stopVoice(); }
 };
 $('#voiceLang').onclick = () => {   // o'zbek <-> rus (o'zbekcha yomon tanisa, rus tilida ham sinab ko'rish mumkin)
   recLang = recLang.startsWith('ru') ? 'uz-UZ' : 'ru-RU'; LS.set('vlang', recLang);
