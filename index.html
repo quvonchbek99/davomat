@@ -105,6 +105,10 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .jtbl td.jc{cursor:pointer;min-width:40px;padding:8px 4px;font-size:12px;border-left:1px solid var(--line)}
 .jtbl td.jc b{margin-left:3px;font-size:14px;color:var(--ink)}
 .jtbl td.jc:hover{background:var(--pri-soft)}
+.jtbl th.jcs,.jtbl td.jcs{background:var(--ok-soft)}
+.jtbl th.jcs{color:var(--ok)}
+.jtbl td.jc.jcs{box-shadow:inset 2px 0 0 var(--ok),inset -2px 0 0 var(--ok)}
+.jtbl td.jc.jcs.jdf{box-shadow:inset 0 -3px 0 var(--daf),inset 2px 0 0 var(--ok),inset -2px 0 0 var(--ok)}
 .jtbl td.jdf{box-shadow:inset 0 -3px 0 var(--daf)}
 .jtbl td.jed{background:color-mix(in srgb,#f5b400 24%,var(--card))}
 .jtbl td.jsel{box-shadow:inset 0 0 0 2px var(--pri)!important}
@@ -127,8 +131,14 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .jcp select{height:30px;border:0;border-radius:9px;padding:0 6px;background:var(--card);color:var(--ink);font:inherit;font-size:12px;font-weight:700}
 .jcp button{height:30px;padding:0 10px;border-radius:9px;font-size:13px;font-weight:700;color:var(--ok);white-space:nowrap}
 .jcp button:hover{background:var(--card)}
-.jtbl th[data-jcol]{cursor:copy}
+.jtbl th[data-jcol]{cursor:pointer}
 .jtbl th[data-jcol]:hover{background:var(--ok-soft);color:var(--ok)}
+.jtbl td.jcpd,.jtbl th.jcpd{background-image:linear-gradient(var(--ok) 50%,transparent 50%),linear-gradient(var(--ok) 50%,transparent 50%);background-size:2px 8px;background-repeat:repeat-y;background-position:left top,right top}
+.jcolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--ok-soft);border-radius:12px;padding:6px 8px;margin:0 0 8px;font-size:13px}
+.jcolbar button{height:30px;padding:0 10px;border-radius:9px;font-weight:700;font-size:13px;background:var(--card);color:var(--ok)}
+.jcolbar button[data-cact="clr"]{color:var(--no)}
+.jcolbar button[data-cact="x"]{margin-left:auto;color:var(--muted)}
+.jcolbar kbd{font:inherit;font-size:10px;font-weight:600;opacity:.65;margin-left:2px}
 .oystrip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin-bottom:10px}
 .oyc{flex:0 0 auto;min-width:104px;background:var(--card);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);text-align:left}
 .oyc .m{font-size:12px;font-weight:700;color:var(--muted)}
@@ -1434,6 +1444,10 @@ let yilG = null, yilPer = 'jami', yilMode = 'kunlar', yilData = null, yilSeq = 0
 let yilEdits = {};       // `${n}|${YYYY-MM-DD}` -> {s, b, d}  (saqlanmagan o'zgarishlar, qurilmada ham turadi)
 let jedSel = null;       // {si, iso} — tahrirlanayotgan katak
 let yilCpM = LS.get('yilcpm', 'bb');   // nusxalash: bb — belgi + baho, b — faqat baho, d — faqat davomat
+let yilColSel = null;    // tanlangan ustun: sana (YYYY-MM-DD) | 'name' | 'avg'  (Excel'dagidek ustun nomini bosib tanlanadi)
+let yilCopied = null;    // nusxalangan ustun/katak (punktir bilan ko'rsatiladi)
+let yilClipBuf = null;   // sayt ichida nusxalangan qiymatlar (daftar belgisi bilan) — Ctrl+V da aynan shu qo'yiladi
+const yilUndo = [];      // Ctrl+Z uchun: yilEdits'ning oldingi holatlari
 const yilExtra = new Set();   // jadvaldan tashqari qo'shilgan sanalar (YYYY-MM-DD)
 const oyNomi = m => OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1);
 const SYM = { '+': '+', '-': '−', s: 'S', k: 'K' };
@@ -1477,7 +1491,7 @@ function yilStatJ(J) {
 function openYil() {
   if (!att) return;
   const g = att.guruh, gi = INIT.guruhlar.find(x => x.id === g) || {}, my = ++yilSeq;
-  yilG = g; yilPer = 'jami'; yilData = null; jedSel = null; yilExtra.clear(); yilEdLoad(g);
+  yilG = g; yilPer = 'jami'; yilData = null; jedSel = null; yilColSel = null; yilCopied = null; yilUndo.length = 0; yilExtra.clear(); yilEdLoad(g);
   $('#yilTitle').textContent = g + ' guruh — umumiy yillik';
   $('#yilSub').textContent = gi.nomi || '';
   $('#yil').classList.remove('hide'); $('#yil').scrollTop = 0; $('#jed').classList.add('hide');
@@ -1494,19 +1508,26 @@ function yilGridHtml(J) {
   const idx = yilIdx(J);
   if (!idx.length) return `<div class="empty"><b>Bu davrda dars yo'q</b>Boshqa davrni tanlang</div>`;
   const today = todayStr();
+  const vis = idx.map(i => J.iso[i]), csel = yilColSel === 'name' || yilColSel === 'avg' || vis.includes(yilColSel) ? yilColSel : null;
+  const cc = k => (csel === k ? ' jcs' : '') + (yilCopied === k ? ' jcpd' : '');   // tanlangan / nusxalangan ustun belgisi
   const head = idx.map(i => { const d = J.iso[i], bor = J.oquvchilar.some(o => belBor(o.belgilar[i]));
-    return `<th data-jcol="${i}" class="${bor ? '' : 'jdim'}${d === today ? ' jtoday' : ''}" title="${esc(human(d))}${bor ? '' : ' — belgi qo\'yilmagan'} · bosing — ustunni nusxalash">${J.sanalar[i]}<small>${KUNQ[parseD(d).getDay()]}</small></th>`; }).join('');
-  const body = J.oquvchilar.map((o, si) => `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>` + idx.map(i => {
+    return `<th data-jcol="${d}" class="${bor ? '' : 'jdim'}${d === today ? ' jtoday' : ''}${cc(d)}" title="${esc(human(d))}${bor ? '' : ' — belgi qo\'yilmagan'} · bosing — ustunni tanlash (Ctrl+C / Ctrl+V)">${J.sanalar[i]}<small>${KUNQ[parseD(d).getDay()]}</small></th>`; }).join('');
+  const body = J.oquvchilar.map((o, si) => `<tr><td class="l${cc('name')}">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>` + idx.map(i => {
     const d = J.iso[i], [c0, b] = o.belgilar[i], c = String(c0 || ''), s = c.replace('d', '');
     const cls = { '+': 'c-ok', '-': 'c-no', s: 'c-s', k: 'c-k' }[s] || '';
     const ed = yilEdits[o.n + '|' + d] ? ' jed' : '', sel = jedSel && jedSel.si === si && jedSel.iso === d ? ' jsel' : '';
-    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}</td>`;
-  }).join('') + `<td><b>${yilAvg(o, idx) ?? '—'}</b></td></tr>`).join('');
+    const cp = yilCopied === si + '|' + d ? ' jcpd' : '';
+    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}${cc(d)}${cp}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}</td>`;
+  }).join('') + `<td class="${cc('avg')}"><b>${yilAvg(o, idx) ?? '—'}</b></td></tr>`).join('');
   const cpm = (v, t) => `<option value="${v}" ${yilCpM === v ? 'selected' : ''}>${t}</option>`;
-  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Katakni bosing — belgi va bahoni o'zgartirasiz. Kulrang sanalar — jadvalda bor, lekin hali belgi qo'yilmagan kunlar. Sana (ustun nomi) ustiga bosing — o'sha ustun nusxalanadi.</div>
+  const isD = csel && csel !== 'name' && csel !== 'avg';
+  const bar = csel ? `<div class="jcolbar"><span><b>${isD ? esc(yilDFull(csel)) : csel === 'name' ? 'F.I.Sh.' : "O'rt."}</b> ustuni tanlandi</span>
+    <button data-cact="copy">📋 Nusxalash <kbd>Ctrl+C</kbd></button>${isD ? `<button data-cact="paste">📥 Qo'yish <kbd>Ctrl+V</kbd></button><button data-cact="clr">🧹 Tozalash <kbd>Del</kbd></button>` : ''}
+    <button data-cact="x" title="Tanlovni olib tashlash (Esc)">✕</button></div>` : '';
+  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Katakni bosing — belgi va bahoni o'zgartirasiz. Excel'dagidek: sana (ustun nomi)ni bosib ustunni tanlang → <b>Ctrl+C</b> nusxa, boshqa sanani tanlab → <b>Ctrl+V</b> qo'yish (Excel / Sheets'dan ham), <b>Ctrl+Z</b> — bekor qilish.</div>
     <div class="jcp" title="Jadvalni Excel / Google Sheets / Word'ga qo'yish uchun nusxalash"><select id="yilCpM" title="Nima nusxalansin">${cpm('bb', 'Belgi + baho')}${cpm('b', 'Faqat baho')}${cpm('d', 'Faqat davomat')}</select><button id="yilCp">📋 Jadvalni nusxalash</button></div>
     <label class="jadd" title="Jadvalda yo'q kunni qo'shish">➕ Sana <input type="date" id="yilAdd" min="${YIL_BOSH}" max="${today}"></label></div>
-    <div class="tblwrap jtbl"><table><thead><tr><th class="l" data-jcol="name" title="Bosing — F.I.Sh. ustunini nusxalash">F.I.Sh.</th>${head}<th data-jcol="avg" title="Bosing — o'rtacha baho ustunini nusxalash">O'rt.</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    ${bar}<div class="tblwrap jtbl"><table><thead><tr><th class="l${cc('name')}" data-jcol="name" title="Bosing — F.I.Sh. ustunini tanlash">F.I.Sh.</th>${head}<th class="${cc('avg')}" data-jcol="avg" title="Bosing — o'rtacha baho ustunini tanlash">O'rt.</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function drawYil(j0) {
   if (j0) yilData = j0;
@@ -1544,9 +1565,10 @@ function drawYil(j0) {
 }
 // Katakni bosish -> tahrirlash paneli
 $('#yilBody').addEventListener('click', e => {
-  const th = e.target.closest('[data-jcol]'); if (th && yilJ) return yilCopyCol(th.dataset.jcol);
+  const ca = e.target.closest('[data-cact]'); if (ca && yilJ) return yilColAct(ca.dataset.cact);
+  const th = e.target.closest('[data-jcol]'); if (th && yilJ) { yilColSel = th.dataset.jcol; jedClose(); return drawYil(); }
   const td = e.target.closest('[data-jc]'); if (!td || !yilJ) return;
-  const [si, iso] = td.dataset.jc.split('|'); jedOpen(+si, iso);
+  const [si, iso] = td.dataset.jc.split('|'); yilColSel = null; jedOpen(+si, iso);
 });
 function jedCur() { const o = yilJ.oquvchilar[jedSel.si], i = yilJ.iso.indexOf(jedSel.iso), [c, b] = o.belgilar[i] || ['', '']; const cc = String(c || ''); return { o, i, s: cc.replace('d', ''), d: cc.includes('d'), b: b ?? '' }; }
 function jedOpen(si, iso) {
@@ -1577,6 +1599,7 @@ $('#jed').addEventListener('click', e => {
   else if (btn.dataset.jd !== undefined) { if (s !== '+' && s !== 'k') { s = '+'; d = true; } else d = !d; }
   else if (btn.dataset.jclr !== undefined) { s = ''; b = ''; d = false; }
   else return;
+  yilSnap();
   const key = cur.o.n + '|' + jedSel.iso, [bc, bb] = cur.o.base[cur.i], bs = String(bc || '');
   const same = bs.replace('d', '') === s && bs.includes('d') === !!d && String(bb ?? '') === String(b ?? '');
   if (same) delete yilEdits[key]; else yilEdits[key] = { s, b, d: !!d };
@@ -1637,20 +1660,151 @@ async function yilCopyAll() {
   const ok = await copyOut(cpTsv([head, ...rows]), cpHtml(rows, kinds, head));
   toast(ok ? `Jadval nusxalandi ✓ — ${rows.length} o'quvchi × ${idx.length} kun. Excel / Sheets'ga qo'ying (Ctrl+V)` : "Nusxalab bo'lmadi — brauzer ruxsat bermadi", 3500);
 }
-async function yilCopyCol(key) {
-  const J = yilJ, idx = yilIdx(J); let vals, kind = 'txt', lab;
+// [c, b] -> {s, b, d}
+const yilCell = v => { const c = String((v || [])[0] || ''), b = (v || [])[1]; return { s: c.replace('d', ''), b: b === '' || b == null ? '' : b, d: c.includes('d') }; };
+// Ustun (key: sana | 'name' | 'avg') yoki bitta katak (si, iso) uchun clipboard ma'lumoti
+function yilColPayload(key) {
+  const J = yilJ, idx = yilIdx(J); let vals, kind = 'txt', lab, cells = null;
   if (key === 'name') { vals = J.oquvchilar.map(o => o.name); lab = 'F.I.Sh. ustuni'; }
   else if (key === 'avg') { vals = J.oquvchilar.map(o => yilAvg(o, idx) ?? ''); kind = 'num'; lab = "O'rtacha baho ustuni"; }
-  else { const i = +key; if (!(i >= 0 && i < J.iso.length)) return; vals = J.oquvchilar.map(o => yilCpVal(o.belgilar[i])); if (yilCpM === 'b') kind = 'num'; lab = yilDFull(J.iso[i]) + ' ustuni'; }
-  const ok = await copyOut(vals.map(v => String(v ?? '')).join('\n'), cpHtml(vals.map(v => [v]), [kind]));
-  toast(ok ? `${lab} nusxalandi ✓ (${vals.length} qator)` : "Nusxalab bo'lmadi — brauzer ruxsat bermadi", 3000);
+  else {
+    const i = J.iso.indexOf(key); if (i < 0) return null;
+    vals = J.oquvchilar.map(o => yilCpVal(o.belgilar[i])); if (yilCpM === 'b') kind = 'num'; lab = yilDFull(key) + ' ustuni';
+    if (yilCpM === 'bb') cells = J.oquvchilar.map(o => [yilCell(o.belgilar[i])]);
+  }
+  return { key, lab, n: vals.length, cells, text: vals.map(v => String(v ?? '')).join('\n') + '\n', html: cpHtml(vals.map(v => [v]), [kind]) };
 }
+function yilCellPayload(si, iso) {
+  const J = yilJ, i = J.iso.indexOf(iso), o = J.oquvchilar[si]; if (i < 0 || !o) return null;
+  const v = yilCpVal(o.belgilar[i]);
+  return { key: si + '|' + iso, lab: 'Katak', n: 1, cells: yilCpM === 'bb' ? [[yilCell(o.belgilar[i])]] : null, text: v + '\n', html: cpHtml([[v]], [yilCpM === 'b' ? 'num' : 'txt']) };
+}
+function yilAfterCopy(p) {
+  yilClipBuf = p.cells ? { text: p.text, cells: p.cells } : null; yilCopied = p.key; drawYil();
+  toast(`${p.lab} nusxalandi ✓${p.n > 1 ? ` (${p.n} qator)` : ''} — boshqa sanani tanlab Ctrl+V bosing yoki Excel'ga qo'ying`, 3200);
+}
+async function yilCopyCol(key) {
+  const p = yilColPayload(key); if (!p) return;
+  if (await copyOut(p.text, p.html)) yilAfterCopy(p); else toast("Nusxalab bo'lmadi — brauzer ruxsat bermadi", 3000);
+}
+// Qo'yilgan matndagi bitta qiymat: «+5», «+», «−», «-», «S», «K4», «5», «+d5» ... -> {s, b, d}; tanilmasa null
+function yilParse(t) {
+  t = String(t ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!t) return { s: '', b: '', d: false };
+  const d = /[DД]/.test(t); t = t.replace(/[DД]/g, '');
+  const m = t.match(/^([+✓V\-−–—NНSСKК]?)([2-5])?$/); if (!m) return null;
+  let s = { '+': '+', '✓': '+', V: '+', '-': '-', '−': '-', '–': '-', '—': '-', N: '-', 'Н': '-', S: 's', 'С': 's', K: 'k', 'К': 'k' }[m[1]] || '';
+  if (!s && (m[2] || d)) s = '+';
+  return { s, b: m[2] ? +m[2] : '', d };
+}
+// Bitta katakka yozish (tahrirlar ro'yxatiga) — qiymat o'zgargan bo'lsa true
+function yilPut(o, iso, s, b, d) {
+  const i = yilJ.iso.indexOf(iso); if (i < 0) return false;
+  s = s || ''; b = b === '' || b == null ? '' : +b; d = !!d;
+  if (s === '-' || s === 's') b = '';
+  if (b !== '' && s !== '+' && s !== 'k') s = '+';
+  if (s !== '+' && s !== 'k') d = false;
+  const cur = yilCell(o.belgilar[i]), [bc, bb] = o.base[i], bs = String(bc || ''), key = o.n + '|' + iso;
+  if (bs.replace('d', '') === s && bs.includes('d') === d && String(bb ?? '') === String(b)) delete yilEdits[key]; else yilEdits[key] = { s, b, d };
+  return !(cur.s === s && cur.d === d && String(cur.b) === String(b));
+}
+function yilSnap() { yilUndo.push(JSON.stringify(yilEdits)); if (yilUndo.length > 50) yilUndo.shift(); }
+function yilUndoDo() {
+  if (!yilUndo.length) return toast("Bekor qilinadigan amal yo'q");
+  yilEdits = JSON.parse(yilUndo.pop()); yilEdSave(); drawYil(); if (jedSel) jedDraw();
+  toast('Oxirgi amal bekor qilindi ↶', 1800);
+}
+// Ctrl+V: tanlangan ustunga (1-qatordan) yoki tanlangan katakdan boshlab pastga/o'ngga — Excel'dagidek
+function yilPaste(txt) {
+  const J = yilJ, vis = yilIdx(J).map(i => J.iso[i]);
+  let r0, c0, col = false;
+  if (jedSel) { r0 = jedSel.si; c0 = vis.indexOf(jedSel.iso); }
+  else if (yilColSel === 'name' || yilColSel === 'avg') return toast("Bu ustunga qo'yib bo'lmaydi — sana ustunini tanlang", 3000);
+  else if (yilColSel) { r0 = 0; c0 = vis.indexOf(yilColSel); col = true; }
+  else return toast("Avval sana (ustun nomi) yoki katakni bosib tanlang, keyin Ctrl+V", 3000);
+  if (c0 < 0) return toast("Tanlangan sana bu davrda ko'rinmayapti");
+  txt = String(txt || '').replace(/\r\n?/g, '\n');
+  if (!txt) return toast("Clipboard bo'sh — avval nusxa oling");
+  let rows;
+  if (yilClipBuf && yilClipBuf.text === txt) rows = yilClipBuf.cells;   // sayt ichidan nusxa — daftar belgisi bilan
+  else {
+    const lines = txt.split('\n'); if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+    let grid = lines.map(l => l.split('\t'));
+    // «Jadvalni nusxalash»dagi sarlavha qatori bo'lsa — faqat sana ustunlarini olamiz (№, F.I.Sh., O'rt. tashlanadi)
+    const isDH = v => /^\s*\d{2}\.\d{2}(\.\d{4})?\s*$/.test(v);
+    if (grid.length > 1 && grid[0].some(v => /^\s*(№|F\.I\.Sh\.?)\s*$/i.test(v) || isDH(v))) {
+      const keep = grid[0].map((v, k) => isDH(v) ? k : -1).filter(k => k >= 0);
+      grid = grid.slice(1).map(r => keep.map(k => r[k] ?? ''));
+      if (!keep.length) return toast("Qo'yilgan jadvalda sana ustunlari topilmadi", 3000);
+    }
+    rows = grid.map(r => r.map(yilParse));
+  }
+  if (col && rows.length === 1 && rows[0].length === 1) rows = J.oquvchilar.map(() => [rows[0][0]]);   // 1 qiymat — butun ustunga
+  yilSnap();
+  let n = 0, bad = 0, cut = 0; const used = new Set();
+  rows.forEach((r, ri) => {
+    const o = J.oquvchilar[r0 + ri]; if (!o) { cut += r.length; return; }
+    r.forEach((v, ci) => {
+      const iso = vis[c0 + ci]; if (!iso) { cut++; return; }
+      if (!v) { bad++; return; }
+      used.add(iso); if (yilPut(o, iso, v.s, v.b, v.d)) n++;
+    });
+  });
+  if (!n) yilUndo.pop();
+  yilEdSave(); drawYil(); if (jedSel) jedDraw();
+  const where = [...used].sort().map(d => d.slice(8) + '.' + d.slice(5, 7)).join(', ');
+  toast((n ? `Qo'yildi ✓ — ${n} katak o'zgardi${where ? ' (' + where + ')' : ''}. «Saqlash»ni bosing · Ctrl+Z — bekor` : "Qo'yildi — hech narsa o'zgarmadi") +
+    (bad ? ` · ${bad} ta qiymat tanilmadi` : '') + (cut ? ` · ${cut} ta ortiqcha qiymat sig'madi` : ''), 4500);
+}
+function yilClearCol() {
+  if (!yilColSel || !yilJ.iso.includes(yilColSel)) return;
+  yilSnap(); let n = 0; yilJ.oquvchilar.forEach(o => { if (yilPut(o, yilColSel, '', '', false)) n++; });
+  if (!n) yilUndo.pop();
+  yilEdSave(); drawYil();
+  toast(n ? `${yilDFull(yilColSel)} ustuni tozalandi (${n} katak) · Ctrl+Z — bekor` : "Ustun allaqachon bo'sh", 3000);
+}
+async function yilColAct(a) {
+  if (a === 'copy') return yilCopyCol(yilColSel);
+  if (a === 'clr') return yilClearCol();
+  if (a === 'x') { yilColSel = null; yilCopied = null; return drawYil(); }
+  if (a === 'paste') {
+    try { yilPaste(await navigator.clipboard.readText()); }
+    catch (e) { toast("Brauzer clipboard'ni o'qishga ruxsat bermadi — klaviaturada Ctrl+V bosing", 3500); }
+  }
+}
+const yilKbOk = () => !$('#yil').classList.contains('hide') && yilJ && yilMode === 'kunlar' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable;
+// Ctrl+C — tanlangan ustun yoki katak (sahifada matn belgilangan bo'lsa — oddiy nusxa)
+document.addEventListener('copy', e => {
+  if (!yilKbOk()) return;
+  const ws = window.getSelection(); if (ws && !ws.isCollapsed && String(ws).trim()) return;
+  const p = jedSel ? yilCellPayload(jedSel.si, jedSel.iso) : yilColSel ? yilColPayload(yilColSel) : null; if (!p) return;
+  e.preventDefault(); e.clipboardData.setData('text/plain', p.text); e.clipboardData.setData('text/html', p.html);
+  yilAfterCopy(p);
+});
+// Ctrl+V — Excel / Sheets / saytning o'zidan
+document.addEventListener('paste', e => {
+  if (!yilKbOk()) return;
+  e.preventDefault(); yilPaste((e.clipboardData || window.clipboardData).getData('text/plain'));
+});
+// Ctrl+Z — bekor qilish; ustun tanlanganda: Del — tozalash, ←/→ — qo'shni ustun, Esc — tanlovni olib tashlash
+document.addEventListener('keydown', e => {
+  if (!yilKbOk() || document.activeElement.tagName === 'SELECT') return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (k === 'z' || k === 'я')) { e.preventDefault(); return yilUndoDo(); }
+  if (e.ctrlKey || e.metaKey || e.altKey || jedSel || !yilColSel) return;
+  if (k === 'escape') { yilColSel = null; yilCopied = null; drawYil(); }
+  else if (k === 'delete' || k === 'backspace') { e.preventDefault(); yilClearCol(); }
+  else if (k === 'arrowleft' || k === 'arrowright') {
+    const vis = yilIdx(yilJ).map(i => yilJ.iso[i]), keys = ['name', ...vis, 'avg'], i = keys.indexOf(yilColSel) + (k === 'arrowright' ? 1 : -1);
+    if (i >= 0 && i < keys.length) { e.preventDefault(); yilColSel = keys[i]; drawYil(); const th = $('#yilBody').querySelector(`th[data-jcol="${yilColSel}"]`); if (th) th.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+  }
+});
 function yilFoot() {
   const n = Object.keys(yilEdits).length, days = new Set(Object.keys(yilEdits).map(k => k.split('|')[1])).size;
   $('#yilFoot').classList.toggle('hide', !n);
   $('#yilCnt').textContent = n ? `${n} ta o'zgarish · ${days} kun` : '';
 }
-$('#yilUndo').onclick = () => { if (!confirm("Saqlanmagan o'zgarishlar bekor qilinsinmi?")) return; yilEdits = {}; yilEdSave(); jedClose(); drawYil(); };
+$('#yilUndo').onclick = () => { if (!confirm("Saqlanmagan o'zgarishlar bekor qilinsinmi?")) return; yilSnap(); yilEdits = {}; yilEdSave(); jedClose(); drawYil(); };
 $('#yilSave').onclick = async () => {
   if (!yilJ || !Object.keys(yilEdits).length) return;
   const g = yilG, btn = $('#yilSave'); btn.disabled = true;
@@ -1675,7 +1829,7 @@ $('#yilSave').onclick = async () => {
     const rep = { ok: true, guruh: g, sanalar: JS.sanalar, oquvchilar: JS.oquvchilar.map(o => { const x = Object.assign({}, o); delete x.base; return x; }) };
     repCache[g] = rep; LS.set('rep|' + g, rep); LS.del('overview');
     const m = {}; rep.oquvchilar.forEach(o => { m[norm(o.name)] = o; }); STAT[g] = m; SANA[g] = rep.sanalar;
-    yilEdits = {}; yilEdSave(); jedClose(); drawYil(rep);
+    yilEdits = {}; yilUndo.length = 0; yilEdSave(); jedClose(); drawYil(rep);
     if (att && att.guruh === g) { if (dates.includes(att.sana) && !att.dirty) { const l = LS.get('les|' + g + '|' + att.sana, null); if (l) att.oquvchilar = l.map(o => Object.assign({}, o)); } drawAtt(); }
     toast(`Saqlandi ✓ — ${dates.length} kun Google Sheets'ga fonda yozilmoqda`, 3000);
     flushPending();
