@@ -13,6 +13,7 @@ Sayt: https://quvonchbek99.github.io/davomat/ · Backend: Google Apps Script "Da
 - **O'quvchi tarixi.** Karta «⋯» → butun davr belgilarining vaqt chizig'i (sana, +/−/S/K, baho, daftarsiz — binafsha hoshiya).
 - **⬇ Excel hisobot.** Hisobot bo'limida: guruh uchun (Jami · Kunlar · Kelmaganlar varaqlari) va barcha guruhlar uchun (Umumiy · Xavfli) — tanlangan davr (yillik / semestr / oy / kun) bo'yicha.
 - **📊 Umumiy yillik (davomat oynasida).** Guruh ochilganda «📊 Yillik» tugmasi shu guruhning butun o'quv yili bo'yicha natijasini ko'rsatadi: jami ko'rsatkichlar, oylar bo'yicha davomat %, har o'quvchi (keldi / kelmadi / sababli / kechikdi / daftarsiz / o'rtacha baho / %) va kunlar bo'yicha jadval. Semestr yoki oy tanlash va Excel'ga yuklab olish mumkin.
+- **✏️ Jurnal — butun yil, tahrirlash bilan.** «📊 Yillik» → «✏️ Jurnal (kunlar)»: 02.09.2026 dan bugungacha jadval bo'yicha barcha dars kunlari (belgi qo'yilmaganlari kulrang sana bilan), har katakda belgi va baho. Katakni bosing → `+ − S K`, `2–5`, «Daftar yo'q», «Tozalash»; «Keyingi o'quvchi» bilan ustun bo'ylab tez yurasiz. Kompyuterda klaviatura: `+ - s k`, `2–5`, `d`, `Delete`, `↑ ↓ Enter`, `← →`, `Esc`. Jadvalda yo'q kun — «➕ Sana». O'zgarishlar sariq bo'lib turadi (qurilmada saqlanib qoladi), «Saqlash» bosilgach har bir kun Google Sheets'ga fonda yoziladi.
 - **➕ O'quvchi qo'shish.** Guruh jurnalining oxiriga yangi qator qo'shadi (T/r, F.I.Sh., formulalar nusxalanadi).
 
 ### Apps Script'ni yangilash (yetakchi/izoh va o'quvchi qo'shish uchun shart)

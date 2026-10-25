@@ -97,7 +97,32 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 
 /* ---------- attendance ---------- */
 #att{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding-bottom:140px}
-#yil{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding-bottom:40px}
+#yil{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding-bottom:110px}
+#yil.jedopen{padding-bottom:300px}
+.jtbl th small{display:block;font-weight:600;font-size:10px;opacity:.8}
+.jtbl th.jdim{color:#b0b4c6}
+.jtbl th.jtoday{color:var(--pri)}
+.jtbl td.jc{cursor:pointer;min-width:40px;padding:8px 4px;font-size:12px;border-left:1px solid var(--line)}
+.jtbl td.jc b{margin-left:3px;font-size:14px;color:var(--ink)}
+.jtbl td.jc:hover{background:var(--pri-soft)}
+.jtbl td.jdf{box-shadow:inset 0 -3px 0 var(--daf)}
+.jtbl td.jed{background:color-mix(in srgb,#f5b400 24%,var(--card))}
+.jtbl td.jsel{box-shadow:inset 0 0 0 2px var(--pri)!important}
+#jed{position:fixed;left:0;right:0;bottom:0;z-index:58;padding:0 10px calc(10px + env(safe-area-inset-bottom))}
+.jedin{max-width:640px;margin:0 auto;background:var(--card);border-radius:18px;box-shadow:0 -6px 30px rgba(10,12,30,.25);padding:12px 14px}
+.jedh{display:flex;align-items:center;gap:8px}
+.jedh b{font-size:15px}
+#jed .row2{margin-top:8px}
+.jednav{display:flex;gap:8px;margin-top:10px}
+.jednav .btn{flex:1;padding:10px;font-size:13px}
+#jed .seg button.on[data-js="+"]{background:var(--ok);color:#fff}
+#jed .seg button.on[data-js="-"]{background:var(--no);color:#fff}
+#jed .seg button.on[data-js="s"]{background:var(--sab);color:#fff}
+#jed .seg button.on[data-js="k"]{background:var(--late);color:#fff}
+#jed .dbtn[data-jclr]{margin-left:auto}
+.jtop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px}
+.jadd{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--pri);background:var(--pri-soft);border-radius:12px;padding:4px 4px 4px 10px}
+.jadd input{height:30px;border:0;border-radius:9px;padding:0 6px;background:var(--card);color:var(--ink);font:inherit;font-size:12px}
 .oystrip{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin-bottom:10px}
 .oyc{flex:0 0 auto;min-width:104px;background:var(--card);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);text-align:left}
 .oyc .m{font-size:12px;font-weight:700;color:var(--muted)}
@@ -377,7 +402,23 @@ th.l{z-index:3}
     </div>
   </div>
   <div class="wrap" id="yilBody" style="padding-top:12px"></div>
+  <div class="foot hide" id="yilFoot"><div class="footin">
+    <div class="cnt"><span id="yilCnt" style="background:#fff1d6;color:#b45309"></span></div>
+    <button class="btn" id="yilUndo" style="background:var(--bg);padding:13px 14px">Bekor</button>
+    <button class="btn btn-pri" id="yilSave">Saqlash</button>
+  </div></div>
 </section>
+<!-- Jurnal katagini tahrirlash paneli -->
+<div id="jed" class="hide"><div class="jedin">
+  <div class="jedh"><div style="min-width:0"><b id="jedName"></b><div class="small" id="jedDate"></div></div><div class="sp"></div><button class="iconbtn" id="jedX" aria-label="Yopish">✕</button></div>
+  <div class="row2">
+    <div class="seg"><button data-js="+">+</button><button data-js="-">−</button><button data-js="s">S</button><button data-js="k">K</button></div>
+    <div class="grades"><button data-jb="2">2</button><button data-jb="3">3</button><button data-jb="4">4</button><button data-jb="5">5</button></div>
+    <button class="dbtn" data-jd>Daftar yo'q</button>
+    <button class="dbtn" data-jclr>Tozalash</button>
+  </div>
+  <div class="jednav"><button class="btn btn-ghost" data-jn="-1">↑ Oldingi o'quvchi</button><button class="btn btn-ghost" data-jn="1">Keyingi o'quvchi ↓</button></div>
+</div></div>
 <div class="toast" id="toast"></div>
 <div id="bild" class="hide">
   <div class="bbar">
@@ -1381,47 +1422,206 @@ async function renderReport() {
 }
 
 /* ---------- UMUMIY YILLIK (davomat oynasidagi «📊 Yillik» tugmasi) ---------- */
-let yilG = null, yilPer = 'jami', yilMode = 'jami', yilData = null, yilSeq = 0;
+// Jurnal: 02.09 dan bugungacha jadval bo'yicha barcha dars kunlari; katakni bosib belgi/bahoni tahrirlash mumkin
+const YIL_BOSH = '2026-09-02';
+let yilG = null, yilPer = 'jami', yilMode = 'kunlar', yilData = null, yilSeq = 0, yilJ = null;
+let yilEdits = {};       // `${n}|${YYYY-MM-DD}` -> {s, b, d}  (saqlanmagan o'zgarishlar, qurilmada ham turadi)
+let jedSel = null;       // {si, iso} — tahrirlanayotgan katak
+const yilExtra = new Set();   // jadvaldan tashqari qo'shilgan sanalar (YYYY-MM-DD)
 const oyNomi = m => OY[m - 1][0].toUpperCase() + OY[m - 1].slice(1);
+const SYM = { '+': '+', '-': '−', s: 'S', k: 'K' };
+// Belgilar ro'yxatidan statistika (keldi, kelmadi, ..., o'rtacha baho)
+function belStat(bel) {
+  const st = { keldi: 0, kelmadi: 0, sababli: 0, kechikdi: 0, daftarsiz: 0, bahoSoni: 0 }; let sum = 0;
+  bel.forEach(([c, b]) => { c = String(c || ''); const k = { '+': 'keldi', '-': 'kelmadi', s: 'sababli', k: 'kechikdi' }[c.replace('d', '')]; if (k) st[k]++; if (c.includes('d')) st.daftarsiz++; if (b !== '' && b != null && !isNaN(+b)) { st.bahoSoni++; sum += +b; } });
+  st.ortacha = st.bahoSoni ? Math.round(sum / st.bahoSoni * 10) / 10 : null; return st;
+}
+const belBor = ([c, b]) => !!String(c || '') || (b !== '' && b != null);
+function yilEdLoad(g) { yilEdits = LS.get('yiled|' + g, {}); }
+function yilEdSave() { if (!yilG) return; if (Object.keys(yilEdits).length) LS.set('yiled|' + yilG, yilEdits); else LS.del('yiled|' + yilG); }
+// Hisobot + Sheets'ga hali yozilmagan saqlashlar + tahrirlar => to'liq jurnal
+function yilJournal(j0, g) {
+  const isoOf = s => { const d = repDate(s); return d ? fmtD(d) : null; };
+  const set = new Set(), today = todayStr();
+  for (let d = YIL_BOSH; d <= today; d = addDays(d, 1)) if (lessonsFor(d).some(l => l.guruh === g)) set.add(d);
+  const repIso = j0.sanalar.map(isoOf);
+  repIso.forEach(d => d && set.add(d));
+  const pend = LS.get('pending', []).filter(x => x.group === g);
+  pend.forEach(x => set.add(x.date));
+  yilExtra.forEach(d => set.add(d));
+  Object.keys(yilEdits).forEach(k => set.add(k.split('|')[1]));
+  const iso = [...set].sort();
+  const roster = LS.get('stu|' + g, []), nOfR = Object.fromEntries(roster.map(o => [o.r, o.n]));
+  const oq = j0.oquvchilar.map(o => {
+    const m = {};
+    repIso.forEach((d, i) => { const v = (o.belgilar || [])[i]; if (d && v && belBor(v)) m[d] = [String(v[0] || ''), v[1] ?? '']; });
+    pend.forEach(x => { const k = x.marks.find(k => String(nOfR[k.r]) === String(o.n)); if (k) m[x.date] = [(k.s || '') + (k.d && (k.s === '+' || k.s === 'k') ? 'd' : ''), k.b ?? '']; });
+    const base = iso.map(d => m[d] || ['', '']);
+    const bel = iso.map((d, i) => { const e = yilEdits[o.n + '|' + d]; return e ? [(e.s || '') + (e.d ? 'd' : ''), e.b ?? ''] : base[i]; });
+    return Object.assign({}, o, belStat(bel), { base, belgilar: bel });
+  });
+  return { guruh: g, iso, sanalar: iso.map(d => d.slice(8) + '.' + d.slice(5, 7)), oquvchilar: oq };
+}
+// Statistika uchun faqat belgisi bor kunlar
+function yilStatJ(J) {
+  const keep = J.iso.map((d, i) => J.oquvchilar.some(o => belBor(o.belgilar[i])) ? i : -1).filter(i => i >= 0);
+  return { iso: keep.map(i => J.iso[i]), sanalar: keep.map(i => J.sanalar[i]), oquvchilar: J.oquvchilar.map(o => { const bel = keep.map(i => o.belgilar[i]); return Object.assign({}, o, belStat(bel), { belgilar: bel }); }) };
+}
 function openYil() {
   if (!att) return;
   const g = att.guruh, gi = INIT.guruhlar.find(x => x.id === g) || {}, my = ++yilSeq;
-  yilG = g; yilPer = 'jami'; yilData = null;
+  yilG = g; yilPer = 'jami'; yilData = null; jedSel = null; yilExtra.clear(); yilEdLoad(g);
   $('#yilTitle').textContent = g + ' guruh — umumiy yillik';
   $('#yilSub').textContent = gi.nomi || '';
-  $('#yil').classList.remove('hide'); $('#yil').scrollTop = 0;
+  $('#yil').classList.remove('hide'); $('#yil').scrollTop = 0; $('#jed').classList.add('hide');
+  if (Object.keys(yilEdits).length) toast("Saqlanmagan tahrirlar tiklandi — tekshirib «Saqlash»ni bosing", 3500);
   const cached = repCache[g] || LS.get('rep|' + g, null);
-  if (cached) drawYil(cached); else $('#yilBody').innerHTML = '<div class="spin"></div>';
+  if (cached) drawYil(cached); else { $('#yilBody').innerHTML = '<div class="spin"></div>'; yilFoot(); }
   getRep(g, true).then(j => { if (my === yilSeq && !$('#yil').classList.contains('hide')) drawYil(j); })
     .catch(e => { if (my === yilSeq && !yilData) $('#yilBody').innerHTML = `<div class="empty"><b>Yuklab bo'lmadi</b>${esc(e.message)}</div>`; });
 }
+function yilGridHtml(J) {
+  const idx = J.iso.map((d, i) => perMatch(parseD(d), yilPer) ? i : -1).filter(i => i >= 0);
+  if (!idx.length) return `<div class="empty"><b>Bu davrda dars yo'q</b>Boshqa davrni tanlang</div>`;
+  const today = todayStr();
+  const head = idx.map(i => { const d = J.iso[i], bor = J.oquvchilar.some(o => belBor(o.belgilar[i]));
+    return `<th class="${bor ? '' : 'jdim'}${d === today ? ' jtoday' : ''}" title="${esc(human(d))}${bor ? '' : ' — belgi qo\'yilmagan'}">${J.sanalar[i]}<small>${KUNQ[parseD(d).getDay()]}</small></th>`; }).join('');
+  const body = J.oquvchilar.map((o, si) => `<tr><td class="l">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>` + idx.map(i => {
+    const d = J.iso[i], [c0, b] = o.belgilar[i], c = String(c0 || ''), s = c.replace('d', '');
+    const cls = { '+': 'c-ok', '-': 'c-no', s: 'c-s', k: 'c-k' }[s] || '';
+    const ed = yilEdits[o.n + '|' + d] ? ' jed' : '', sel = jedSel && jedSel.si === si && jedSel.iso === d ? ' jsel' : '';
+    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}</td>`;
+  }).join('') + `<td><b>${o.ortacha ?? '—'}</b></td></tr>`).join('');
+  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Katakni bosing — belgi va bahoni o'zgartirasiz. Kulrang sanalar — jadvalda bor, lekin hali belgi qo'yilmagan kunlar.</div>
+    <label class="jadd" title="Jadvalda yo'q kunni qo'shish">➕ Sana <input type="date" id="yilAdd" min="${YIL_BOSH}" max="${today}"></label></div>
+    <div class="tblwrap jtbl"><table><thead><tr><th class="l">F.I.Sh.</th>${head}<th>O'rt.</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
 function drawYil(j0) {
-  yilData = j0;
-  const box = $('#yilBody'), j = repFilter(j0, yilPer), S = j.oquvchilar, tot = repSum(S);
-  const months = [...new Set(j0.sanalar.map(s => { const d = repDate(s); return d ? d.getMonth() + 1 : null; }).filter(Boolean))];
+  if (j0) yilData = j0;
+  if (!yilData) return;
+  const box = $('#yilBody'), tw = box.querySelector('.jtbl'), keep = tw ? [tw.scrollLeft, tw.scrollTop] : null, top = $('#yil').scrollTop;
+  const J = yilJ = yilJournal(yilData, yilG), JS = yilStatJ(J);
+  const j = repFilter(JS, yilPer), S = j.oquvchilar, tot = repSum(S);
+  const months = [...new Set(J.iso.map(d => parseD(d).getMonth() + 1))];
   let h = perBar(months, yilPer) +
-    `<div class="small" style="margin:-4px 0 10px">Davr: <b>${esc(perName(yilPer))}</b> · Google Sheets'ga saqlangan belgilar bo'yicha</div>` +
+    `<div class="small" style="margin:-4px 0 10px">Davr: <b>${esc(perName(yilPer))}</b> · ${esc(human(YIL_BOSH))} dan bugungacha</div>` +
     repStatsHtml(S, j, tot);
   // Oylar kesimi: har oyda nechta dars, davomat % va o'rtacha baho (oyni bosib, shu oyni ochish mumkin)
-  const ms = months.filter(m => perMatch(new Date(2026, m - 1, 15), yilPer));
+  const ms = [...new Set(JS.iso.map(d => parseD(d).getMonth() + 1))].filter(m => perMatch(new Date(2026, m - 1, 15), yilPer));
   if (ms.length > 1 && !yilPer.startsWith('kun:')) {
     h += `<h2 class="sec" style="margin-top:6px">Oylar bo'yicha</h2><div class="oystrip">` + ms.map(m => {
-      const f = repFilter(j0, 'oy:' + m), t = repSum(f.oquvchilar), p = pct(t);
+      const f = repFilter(JS, 'oy:' + m), t = repSum(f.oquvchilar), p = pct(t);
       return `<button class="oyc" data-oym="${m}"><div class="m">${oyNomi(m)}</div><b>${p ?? '—'}%</b><div class="bar"><i style="width:${p ?? 0}%"></i></div><small>${f.sanalar.length} dars · baho ${avgB(t) ?? '—'}</small></button>`;
     }).join('') + '</div>';
   }
-  h += `<div class="seltabs"><button data-ym="jami" class="${yilMode === 'jami' ? 'on' : ''}">Jami (o'quvchilar)</button><button data-ym="kunlar" class="${yilMode === 'kunlar' ? 'on' : ''}">Kunlar bo'yicha</button></div>` +
-    repTableHtml(j, yilMode);
+  h += `<div class="seltabs"><button data-ym="kunlar" class="${yilMode === 'kunlar' ? 'on' : ''}">✏️ Jurnal (kunlar)</button><button data-ym="jami" class="${yilMode === 'jami' ? 'on' : ''}">Jami (o'quvchilar)</button></div>` +
+    (yilMode === 'kunlar' ? yilGridHtml(J) : repTableHtml(j, 'jami'));
   box.innerHTML = h;
-  bindPer(box, v => { yilPer = v; drawYil(yilData); });
-  box.querySelectorAll('[data-ym]').forEach(b => b.onclick = () => { yilMode = b.dataset.ym; drawYil(yilData); });
-  box.querySelectorAll('[data-oym]').forEach(b => b.onclick = () => { yilPer = 'oy:' + b.dataset.oym; drawYil(yilData); });
+  const tw2 = box.querySelector('.jtbl'); if (tw2 && keep) { tw2.scrollLeft = keep[0]; tw2.scrollTop = keep[1]; }
+  $('#yil').scrollTop = top;
+  bindPer(box, v => { yilPer = v; drawYil(); });
+  box.querySelectorAll('[data-ym]').forEach(b => b.onclick = () => { yilMode = b.dataset.ym; jedClose(); drawYil(); });
+  box.querySelectorAll('[data-oym]').forEach(b => b.onclick = () => { yilPer = 'oy:' + b.dataset.oym; drawYil(); });
+  const ad = box.querySelector('#yilAdd');
+  if (ad) ad.onchange = () => { const d = ad.value; if (!d) return; if (!perMatch(parseD(d), yilPer)) yilPer = 'jami'; yilExtra.add(d); drawYil(); jedOpen(0, d); };
+  yilFoot();
 }
+// Katakni bosish -> tahrirlash paneli
+$('#yilBody').addEventListener('click', e => {
+  const td = e.target.closest('[data-jc]'); if (!td || !yilJ) return;
+  const [si, iso] = td.dataset.jc.split('|'); jedOpen(+si, iso);
+});
+function jedCur() { const o = yilJ.oquvchilar[jedSel.si], i = yilJ.iso.indexOf(jedSel.iso), [c, b] = o.belgilar[i] || ['', '']; const cc = String(c || ''); return { o, i, s: cc.replace('d', ''), d: cc.includes('d'), b: b ?? '' }; }
+function jedOpen(si, iso) {
+  jedSel = { si, iso }; $('#jed').classList.remove('hide'); $('#yil').classList.add('jedopen');
+  drawYil(); jedDraw();
+  const td = $('#yilBody').querySelector(`[data-jc="${si}|${iso}"]`); if (td) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function jedClose() { jedSel = null; $('#jed').classList.add('hide'); $('#yil').classList.remove('jedopen'); }
+function jedDraw() {
+  if (!jedSel) return;
+  const { o, s, d, b } = jedCur(), canD = s === '+' || s === 'k';
+  $('#jedName').textContent = o.n + '. ' + o.name.split(' ').slice(0, 2).join(' ');
+  $('#jedDate').textContent = human(jedSel.iso) + (yilEdits[o.n + '|' + jedSel.iso] ? ' · o\'zgartirildi (saqlanmagan)' : '');
+  $('#jed').querySelectorAll('[data-js]').forEach(x => x.classList.toggle('on', x.dataset.js === s));
+  $('#jed').querySelectorAll('[data-jb]').forEach(x => x.classList.toggle('on', Number(b) === +x.dataset.jb));
+  $('#jed').querySelector('[data-jd]').classList.toggle('on', d && canD);
+}
+$('#jed').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn || btn.disabled || !jedSel || !yilJ) return;
+  if (btn.id === 'jedX') { jedClose(); return drawYil(); }
+  if (btn.dataset.jn !== undefined) {   // oldingi / keyingi o'quvchi
+    const n = jedSel.si + +btn.dataset.jn; if (n < 0 || n >= yilJ.oquvchilar.length) return;
+    return jedOpen(n, jedSel.iso);
+  }
+  const cur = jedCur(); let { s, b, d } = cur;
+  if (btn.dataset.js !== undefined) { s = s === btn.dataset.js ? '' : btn.dataset.js; if (s === '-' || s === 's') { b = ''; d = false; } if (!s) d = false; }
+  else if (btn.dataset.jb !== undefined) { b = Number(b) === +btn.dataset.jb ? '' : +btn.dataset.jb; if (b !== '' && s !== '+' && s !== 'k') s = '+'; }   // baho qo'yilsa — «keldi»
+  else if (btn.dataset.jd !== undefined) { if (s !== '+' && s !== 'k') { s = '+'; d = true; } else d = !d; }
+  else if (btn.dataset.jclr !== undefined) { s = ''; b = ''; d = false; }
+  else return;
+  const key = cur.o.n + '|' + jedSel.iso, [bc, bb] = cur.o.base[cur.i], bs = String(bc || '');
+  const same = bs.replace('d', '') === s && bs.includes('d') === !!d && String(bb ?? '') === String(b ?? '');
+  if (same) delete yilEdits[key]; else yilEdits[key] = { s, b, d: !!d };
+  yilEdSave(); drawYil(); jedDraw();
+});
+// Klaviatura (kompyuterda tez kiritish): + - s k, 2-5, d — daftar, Delete — tozalash, ↑/↓ yoki Enter — o'quvchi, ←/→ — sana, Esc — yopish
+document.addEventListener('keydown', e => {
+  if ($('#jed').classList.contains('hide') || !jedSel || !yilJ || e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase(), q = sel => { const b = $('#jed').querySelector(sel); if (b) { e.preventDefault(); b.click(); } };
+  if (k === '+' || k === '=') q('[data-js="+"]'); else if (k === '-') q('[data-js="-"]'); else if (k === 's' || k === 'ы') q('[data-js="s"]'); else if (k === 'k' || k === 'л') q('[data-js="k"]');
+  else if (/^[2-5]$/.test(k)) q(`[data-jb="${k}"]`); else if (k === 'd' || k === 'в') q('[data-jd]'); else if (k === 'delete' || k === 'backspace') q('[data-jclr]');
+  else if (k === 'arrowdown' || k === 'enter') q('[data-jn="1"]'); else if (k === 'arrowup') q('[data-jn="-1"]'); else if (k === 'escape') q('#jedX');
+  else if (k === 'arrowleft' || k === 'arrowright') {
+    const vis = yilJ.iso.filter(d => perMatch(parseD(d), yilPer)), i = vis.indexOf(jedSel.iso) + (k === 'arrowright' ? 1 : -1);
+    if (i >= 0 && i < vis.length) { e.preventDefault(); jedOpen(jedSel.si, vis[i]); }
+  }
+});
+function yilFoot() {
+  const n = Object.keys(yilEdits).length, days = new Set(Object.keys(yilEdits).map(k => k.split('|')[1])).size;
+  $('#yilFoot').classList.toggle('hide', !n);
+  $('#yilCnt').textContent = n ? `${n} ta o'zgarish · ${days} kun` : '';
+}
+$('#yilUndo').onclick = () => { if (!confirm("Saqlanmagan o'zgarishlar bekor qilinsinmi?")) return; yilEdits = {}; yilEdSave(); jedClose(); drawYil(); };
+$('#yilSave').onclick = async () => {
+  if (!yilJ || !Object.keys(yilEdits).length) return;
+  const g = yilG, btn = $('#yilSave'); btn.disabled = true;
+  try {
+    // Har bir o'quvchining Sheets qatori (r): ro'yxat keshidan, bo'lmasa serverdan
+    let roster = LS.get('stu|' + g, []);
+    const rOf = o => { const x = roster.find(y => String(y.n) === String(o.n)) || roster.find(y => norm(y.name) === norm(o.name)); return x ? x.r : null; };
+    if (yilJ.oquvchilar.some(o => rOf(o) == null)) {
+      const j = await api('lesson', { group: g, date: todayStr() });
+      roster = j.oquvchilar.map(o => ({ r: o.r, n: o.n, name: o.name })); LS.set('stu|' + g, roster);
+    }
+    if (yilJ.oquvchilar.some(o => rOf(o) == null)) throw new Error("O'quvchilar ro'yxati mos kelmadi — sahifani yangilang");
+    const dates = [...new Set(Object.keys(yilEdits).map(k => k.split('|')[1]))].sort();
+    dates.forEach((date, k) => {
+      const i = yilJ.iso.indexOf(date); if (i < 0) return;
+      const marks = yilJ.oquvchilar.map(o => { const c = String(o.belgilar[i][0] || ''), b = o.belgilar[i][1]; return { r: rOf(o), s: c.replace('d', ''), b: b ?? '', d: c.includes('d') }; });
+      addPending({ id: Date.now() + k, group: g, date, marks });
+      LS.set('les|' + g + '|' + date, yilJ.oquvchilar.map((o, x) => Object.assign({ r: marks[x].r, n: o.n, name: o.name }, { s: marks[x].s, b: marks[x].b, d: marks[x].d })));
+    });
+    // Mahalliy hisobotni darhol yangilaymiz (Sheets'dan yangisi kelguncha)
+    const JS = yilStatJ(yilJ);
+    const rep = { ok: true, guruh: g, sanalar: JS.sanalar, oquvchilar: JS.oquvchilar.map(o => { const x = Object.assign({}, o); delete x.base; return x; }) };
+    repCache[g] = rep; LS.set('rep|' + g, rep); LS.del('overview');
+    const m = {}; rep.oquvchilar.forEach(o => { m[norm(o.name)] = o; }); STAT[g] = m; SANA[g] = rep.sanalar;
+    yilEdits = {}; yilEdSave(); jedClose(); drawYil(rep);
+    if (att && att.guruh === g) { if (dates.includes(att.sana) && !att.dirty) { const l = LS.get('les|' + g + '|' + att.sana, null); if (l) att.oquvchilar = l.map(o => Object.assign({}, o)); } drawAtt(); }
+    toast(`Saqlandi ✓ — ${dates.length} kun Google Sheets'ga fonda yozilmoqda`, 3000);
+    flushPending();
+  } catch (e) { toast(e.message, 4000); }
+  btn.disabled = false;
+};
 $('#yilBtn').onclick = openYil;
-$('#yilBack').onclick = () => { $('#yil').classList.add('hide'); yilSeq++; };
+$('#yilBack').onclick = () => {
+  if (Object.keys(yilEdits).length && !confirm("Saqlanmagan o'zgarishlar bor. Ular shu qurilmada qoladi va keyingi safar tiklanadi. Chiqilsinmi?")) return;
+  jedClose(); $('#yil').classList.add('hide'); yilSeq++;
+};
 $('#yilXls').onclick = () => {
-  if (!yilData) return toast("Ma'lumot hali yuklanmadi");
-  const gi = INIT.guruhlar.find(x => x.id === yilG) || {}, j = repFilter(yilData, yilPer);
+  if (!yilJ) return toast("Ma'lumot hali yuklanmadi");
+  const gi = INIT.guruhlar.find(x => x.id === yilG) || {}, j = repFilter(yilStatJ(yilJ), yilPer);
   xlsGroup(yilG, gi.nomi || '', j, repSum(j.oquvchilar), perName(yilPer));
 };
 
