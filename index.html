@@ -134,6 +134,9 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .jtbl th[data-jcol]{cursor:pointer}
 .jtbl th[data-jcol]:hover{background:var(--ok-soft);color:var(--ok)}
 .jtbl td.jcpd,.jtbl th.jcpd{background-image:linear-gradient(var(--ok) 50%,transparent 50%),linear-gradient(var(--ok) 50%,transparent 50%);background-size:2px 8px;background-repeat:repeat-y;background-position:left top,right top}
+.jtbl td.jrs{background-image:linear-gradient(rgba(79,70,229,.17),rgba(79,70,229,.17))}
+.jtbl td.jrs.jcpd{background-image:linear-gradient(var(--ok) 50%,transparent 50%),linear-gradient(var(--ok) 50%,transparent 50%),linear-gradient(rgba(79,70,229,.17),rgba(79,70,229,.17));background-size:2px 8px,2px 8px,100% 100%;background-repeat:repeat-y,repeat-y,no-repeat;background-position:left top,right top,0 0}
+.jtbl table{user-select:none;-webkit-user-select:none}
 .jcolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--ok-soft);border-radius:12px;padding:6px 8px;margin:0 0 8px;font-size:13px}
 .jcolbar button{height:30px;padding:0 10px;border-radius:9px;font-weight:700;font-size:13px;background:var(--card);color:var(--ok)}
 .jcolbar button[data-cact="clr"]{color:var(--no)}
@@ -1445,7 +1448,9 @@ let yilEdits = {};       // `${n}|${YYYY-MM-DD}` -> {s, b, d}  (saqlanmagan o'zg
 let jedSel = null;       // {si, iso} — tahrirlanayotgan katak
 let yilCpM = LS.get('yilcpm', 'bb');   // nusxalash: bb — belgi + baho, b — faqat baho, d — faqat davomat
 let yilColSel = null;    // tanlangan ustun: sana (YYYY-MM-DD) | 'name' | 'avg'  (Excel'dagidek ustun nomini bosib tanlanadi)
-let yilCopied = null;    // nusxalangan ustun/katak (punktir bilan ko'rsatiladi)
+let yilCopied = null;    // nusxalangan ustun (kalit) yoki kataklar (Set «si|iso») — punktir bilan ko'rsatiladi
+let yilRng = null;       // belgilangan kataklar (Excel'dagidek): {a: {si, iso} — boshlang'ich (faol katak), b: {si, iso} — oxirgi}
+let yilDrag = null;      // sichqoncha bilan surib belgilash davom etmoqda
 let yilClipBuf = null;   // sayt ichida nusxalangan qiymatlar (daftar belgisi bilan) — Ctrl+V da aynan shu qo'yiladi
 const yilUndo = [];      // Ctrl+Z uchun: yilEdits'ning oldingi holatlari
 const yilExtra = new Set();   // jadvaldan tashqari qo'shilgan sanalar (YYYY-MM-DD)
@@ -1491,7 +1496,7 @@ function yilStatJ(J) {
 function openYil() {
   if (!att) return;
   const g = att.guruh, gi = INIT.guruhlar.find(x => x.id === g) || {}, my = ++yilSeq;
-  yilG = g; yilPer = 'jami'; yilData = null; jedSel = null; yilColSel = null; yilCopied = null; yilUndo.length = 0; yilExtra.clear(); yilEdLoad(g);
+  yilG = g; yilPer = 'jami'; yilData = null; jedSel = null; yilRng = null; yilColSel = null; yilCopied = null; yilUndo.length = 0; yilExtra.clear(); yilEdLoad(g);
   $('#yilTitle').textContent = g + ' guruh — umumiy yillik';
   $('#yilSub').textContent = gi.nomi || '';
   $('#yil').classList.remove('hide'); $('#yil').scrollTop = 0; $('#jed').classList.add('hide');
@@ -1510,21 +1515,23 @@ function yilGridHtml(J) {
   const today = todayStr();
   const vis = idx.map(i => J.iso[i]), csel = yilColSel === 'name' || yilColSel === 'avg' || vis.includes(yilColSel) ? yilColSel : null;
   const cc = k => (csel === k ? ' jcs' : '') + (yilCopied === k ? ' jcpd' : '');   // tanlangan / nusxalangan ustun belgisi
+  const R = yilRect(), multi = R && yilRectN(R) > 1;   // belgilangan to'rtburchak
   const head = idx.map(i => { const d = J.iso[i], bor = J.oquvchilar.some(o => belBor(o.belgilar[i]));
     return `<th data-jcol="${d}" class="${bor ? '' : 'jdim'}${d === today ? ' jtoday' : ''}${cc(d)}" title="${esc(human(d))}${bor ? '' : ' — belgi qo\'yilmagan'} · bosing — ustunni tanlash (Ctrl+C / Ctrl+V)">${J.sanalar[i]}<small>${KUNQ[parseD(d).getDay()]}</small></th>`; }).join('');
   const body = J.oquvchilar.map((o, si) => `<tr><td class="l${cc('name')}">${esc(o.n)}. ${esc(o.name.split(' ').slice(0, 2).join(' '))}</td>` + idx.map(i => {
     const d = J.iso[i], [c0, b] = o.belgilar[i], c = String(c0 || ''), s = c.replace('d', '');
     const cls = { '+': 'c-ok', '-': 'c-no', s: 'c-s', k: 'c-k' }[s] || '';
     const ed = yilEdits[o.n + '|' + d] ? ' jed' : '', sel = jedSel && jedSel.si === si && jedSel.iso === d ? ' jsel' : '';
-    const cp = yilCopied === si + '|' + d ? ' jcpd' : '';
-    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}${cc(d)}${cp}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}</td>`;
+    const cp = yilCopied instanceof Set && yilCopied.has(si + '|' + d) ? ' jcpd' : '';
+    const rs = multi && yilInRect(R, si, d) ? ' jrs' : '';
+    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}${cc(d)}${cp}${rs}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}</td>`;
   }).join('') + `<td class="${cc('avg')}"><b>${yilAvg(o, idx) ?? '—'}</b></td></tr>`).join('');
   const cpm = (v, t) => `<option value="${v}" ${yilCpM === v ? 'selected' : ''}>${t}</option>`;
   const isD = csel && csel !== 'name' && csel !== 'avg';
   const bar = csel ? `<div class="jcolbar"><span><b>${isD ? esc(yilDFull(csel)) : csel === 'name' ? 'F.I.Sh.' : "O'rt."}</b> ustuni tanlandi</span>
     <button data-cact="copy">📋 Nusxalash <kbd>Ctrl+C</kbd></button>${isD ? `<button data-cact="paste">📥 Qo'yish <kbd>Ctrl+V</kbd></button><button data-cact="clr">🧹 Tozalash <kbd>Del</kbd></button>` : ''}
     <button data-cact="x" title="Tanlovni olib tashlash (Esc)">✕</button></div>` : '';
-  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Katakni bosing — belgi va bahoni o'zgartirasiz. Excel'dagidek: sana (ustun nomi)ni bosib ustunni tanlang → <b>Ctrl+C</b> nusxa, boshqa sanani tanlab → <b>Ctrl+V</b> qo'yish (Excel / Sheets'dan ham), <b>Ctrl+Z</b> — bekor qilish.</div>
+  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Katakni bosing — belgi va bahoni o'zgartirasiz. Excel'dagidek: <b>sichqoncha bilan surib</b> (yoki <b>Shift</b>+bosib, <b>Shift</b>+strelka) bir nechta katakni belgilang → <b>2 3 4 5</b>, <b>+ − S K</b> bosing — hammasiga qo'yiladi. Sana (ustun nomi)ni bosib butun ustunni belgilang. <b>Ctrl+C</b> nusxa, <b>Ctrl+V</b> qo'yish (Excel / Sheets'dan ham), <b>Ctrl+Z</b> — bekor qilish, <b>Ctrl+A</b> — hammasini belgilash.</div>
     <div class="jcp" title="Jadvalni Excel / Google Sheets / Word'ga qo'yish uchun nusxalash"><select id="yilCpM" title="Nima nusxalansin">${cpm('bb', 'Belgi + baho')}${cpm('b', 'Faqat baho')}${cpm('d', 'Faqat davomat')}</select><button id="yilCp">📋 Jadvalni nusxalash</button></div>
     <label class="jadd" title="Jadvalda yo'q kunni qo'shish">➕ Sana <input type="date" id="yilAdd" min="${YIL_BOSH}" max="${today}"></label></div>
     ${bar}<div class="tblwrap jtbl"><table><thead><tr><th class="l${cc('name')}" data-jcol="name" title="Bosing — F.I.Sh. ustunini tanlash">F.I.Sh.</th>${head}<th class="${cc('avg')}" data-jcol="avg" title="Bosing — o'rtacha baho ustunini tanlash">O'rt.</th></tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1563,22 +1570,86 @@ function drawYil(j0) {
   if (ad) ad.onchange = () => { const d = ad.value; if (!d) return; if (!perMatch(parseD(d), yilPer)) yilPer = 'jami'; yilExtra.add(d); drawYil(); jedOpen(0, d); };
   yilFoot();
 }
-// Katakni bosish -> tahrirlash paneli
+// ---------- Belgilash (Excel'dagidek): katak / to'rtburchak / butun ustun ----------
+// Belgilangan to'rtburchak: {r1, r2, c1, c2, vis} — vis: ko'rinayotgan sanalar, c — vis ichidagi indeks
+function yilRect() {
+  if (!yilJ) return null;
+  const vis = yilIdx(yilJ).map(i => yilJ.iso[i]);
+  if (yilRng) {
+    const ca = vis.indexOf(yilRng.a.iso), cb = vis.indexOf(yilRng.b.iso);
+    if (ca >= 0 && cb >= 0) return { r1: Math.min(yilRng.a.si, yilRng.b.si), r2: Math.max(yilRng.a.si, yilRng.b.si), c1: Math.min(ca, cb), c2: Math.max(ca, cb), vis };
+  }
+  if (jedSel) { const c = vis.indexOf(jedSel.iso); if (c >= 0) return { r1: jedSel.si, r2: jedSel.si, c1: c, c2: c, vis }; }
+  return null;
+}
+const yilRectN = R => (R.r2 - R.r1 + 1) * (R.c2 - R.c1 + 1);
+const yilInRect = (R, si, iso) => { const c = R.vis.indexOf(iso); return si >= R.r1 && si <= R.r2 && c >= R.c1 && c <= R.c2; };
+function yilRectCells(R) { const out = []; for (let r = R.r1; r <= R.r2; r++) for (let c = R.c1; c <= R.c2; c++) out.push({ si: r, iso: R.vis[c], o: yilJ.oquvchilar[r] }); return out; }
+// Surish paytida jadvalni qayta chizmasdan faqat belgilarni yangilash
+function yilPaintSel() {
+  const R = yilRect(), multi = R && yilRectN(R) > 1;
+  $('#yilBody').querySelectorAll('td[data-jc]').forEach(td => {
+    const [a, iso] = td.dataset.jc.split('|'), si = +a;
+    td.classList.toggle('jrs', !!(multi && yilInRect(R, si, iso)));
+    td.classList.toggle('jsel', !!(jedSel && jedSel.si === si && jedSel.iso === iso));
+  });
+}
+// Sana ustunini bosish — butun ustun belgilanadi (tugmalar / 2–5 hammasiga), F.I.Sh. / O'rt. — faqat nusxalash uchun
+function yilSelCol(key) {
+  const vis = yilIdx(yilJ).map(i => yilJ.iso[i]), last = yilJ.oquvchilar.length - 1;
+  if (vis.includes(key) && last >= 0) { yilColSel = key; return jedOpen(0, key, { a: { si: 0, iso: key }, b: { si: last, iso: key } }); }
+  jedClose(); yilColSel = key; drawYil();
+}
 $('#yilBody').addEventListener('click', e => {
   const ca = e.target.closest('[data-cact]'); if (ca && yilJ) return yilColAct(ca.dataset.cact);
-  const th = e.target.closest('[data-jcol]'); if (th && yilJ) { yilColSel = th.dataset.jcol; jedClose(); return drawYil(); }
-  const td = e.target.closest('[data-jc]'); if (!td || !yilJ) return;
-  const [si, iso] = td.dataset.jc.split('|'); yilColSel = null; jedOpen(+si, iso);
+  const th = e.target.closest('[data-jcol]'); if (th && yilJ) return yilSelCol(th.dataset.jcol);
+});
+// Sichqoncha: bosish — bitta katak, surish — to'rtburchak, Shift+bosish — faol katakdan shu katakkacha
+$('#yilBody').addEventListener('mousedown', e => {
+  if (e.button !== 0 || !yilJ) return;
+  const td = e.target.closest('[data-jc]'); if (!td) return;
+  const [a, iso] = td.dataset.jc.split('|'), si = +a;
+  e.preventDefault();
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  if (e.shiftKey && jedSel && !$('#jed').classList.contains('hide')) { yilColSel = null; return jedOpen(jedSel.si, jedSel.iso, { a: { ...jedSel }, b: { si, iso } }, true); }
+  yilDrag = { si, iso }; yilRng = null; yilColSel = null; jedSel = { si, iso }; yilPaintSel();
+});
+$('#yilBody').addEventListener('mouseover', e => {
+  if (!yilDrag) return;
+  const td = e.target.closest('[data-jc]'); if (!td) return;
+  const [a, iso] = td.dataset.jc.split('|'), si = +a;
+  const b = yilRng ? yilRng.b : yilDrag; if (b.si === si && b.iso === iso) return;
+  yilRng = { a: { si: yilDrag.si, iso: yilDrag.iso }, b: { si, iso } }; yilPaintSel();
+});
+document.addEventListener('mouseup', () => {
+  if (!yilDrag) return;
+  const d = yilDrag, R = yilRect(); yilDrag = null;
+  if (R && yilRectN(R) > 1) jedOpen(d.si, d.iso, yilRng, true); else jedOpen(d.si, d.iso);
 });
 function jedCur() { const o = yilJ.oquvchilar[jedSel.si], i = yilJ.iso.indexOf(jedSel.iso), [c, b] = o.belgilar[i] || ['', '']; const cc = String(c || ''); return { o, i, s: cc.replace('d', ''), d: cc.includes('d'), b: b ?? '' }; }
-function jedOpen(si, iso) {
-  jedSel = { si, iso }; $('#jed').classList.remove('hide'); $('#yil').classList.add('jedopen');
+// jedOpen(si, iso) — bitta katak; rng berilsa — to'rtburchak (si/iso — faol katak)
+function jedOpen(si, iso, rng = null, noScroll = false) {
+  jedSel = { si, iso }; yilRng = rng; if (!rng) yilColSel = null;
+  $('#jed').classList.remove('hide'); $('#yil').classList.add('jedopen');
   drawYil(); jedDraw();
-  const td = $('#yilBody').querySelector(`[data-jc="${si}|${iso}"]`); if (td) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (noScroll) return;
+  const t = rng && !yilColSel ? rng.b : jedSel;
+  const td = $('#yilBody').querySelector(`[data-jc="${t.si}|${t.iso}"]`); if (td && !(rng && yilColSel)) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
-function jedClose() { jedSel = null; $('#jed').classList.add('hide'); $('#yil').classList.remove('jedopen'); }
+function jedClose() { jedSel = null; yilRng = null; $('#jed').classList.add('hide'); $('#yil').classList.remove('jedopen'); }
+const dm = d => d.slice(8) + '.' + d.slice(5, 7);
 function jedDraw() {
   if (!jedSel) return;
+  const R = yilRect(), cells = R ? yilRectCells(R) : [];
+  if (cells.length > 1) {   // bir nechta katak belgilangan
+    const vals = cells.map(c => yilCell(c.o.belgilar[yilJ.iso.indexOf(c.iso)])), nr = R.r2 - R.r1 + 1, nc = R.c2 - R.c1 + 1;
+    $('#jedName').textContent = `${cells.length} ta katak belgilandi`;
+    $('#jedDate').textContent = (nc === 1 ? human(R.vis[R.c1]) : `${dm(R.vis[R.c1])} – ${dm(R.vis[R.c2])} (${nc} kun)`) + ` · ${nr} o'quvchi · tugma hammasiga qo'yiladi`;
+    $('#jed').querySelectorAll('[data-js]').forEach(x => x.classList.toggle('on', vals.every(v => v.s === x.dataset.js)));
+    $('#jed').querySelectorAll('[data-jb]').forEach(x => x.classList.toggle('on', vals.every(v => v.b !== '' && Number(v.b) === +x.dataset.jb)));
+    $('#jed').querySelector('[data-jd]').classList.toggle('on', vals.every(v => v.d && (v.s === '+' || v.s === 'k')));
+    return;
+  }
   const { o, s, d, b } = jedCur(), canD = s === '+' || s === 'k';
   $('#jedName').textContent = o.n + '. ' + o.name.split(' ').slice(0, 2).join(' ');
   $('#jedDate').textContent = human(jedSel.iso) + (yilEdits[o.n + '|' + jedSel.iso] ? ' · o\'zgartirildi (saqlanmagan)' : '');
@@ -1586,29 +1657,47 @@ function jedDraw() {
   $('#jed').querySelectorAll('[data-jb]').forEach(x => x.classList.toggle('on', Number(b) === +x.dataset.jb));
   $('#jed').querySelector('[data-jd]').classList.toggle('on', d && canD);
 }
+// Tugmalar (va klaviatura) — belgilangan barcha kataklarga. Hammasida shu qiymat bo'lsa — olib tashlanadi (bitta katakdagidek)
 $('#jed').addEventListener('click', e => {
   const btn = e.target.closest('button'); if (!btn || btn.disabled || !jedSel || !yilJ) return;
-  if (btn.id === 'jedX') { jedClose(); return drawYil(); }
+  if (btn.id === 'jedX') { jedClose(); yilColSel = null; return drawYil(); }
   if (btn.dataset.jn !== undefined) {   // oldingi / keyingi o'quvchi
     const n = jedSel.si + +btn.dataset.jn; if (n < 0 || n >= yilJ.oquvchilar.length) return;
     return jedOpen(n, jedSel.iso);
   }
-  const cur = jedCur(); let { s, b, d } = cur;
-  if (btn.dataset.js !== undefined) { s = s === btn.dataset.js ? '' : btn.dataset.js; if (s === '-' || s === 's') { b = ''; d = false; } if (!s) d = false; }
-  else if (btn.dataset.jb !== undefined) { b = Number(b) === +btn.dataset.jb ? '' : +btn.dataset.jb; if (b !== '' && s !== '+' && s !== 'k') s = '+'; }   // baho qo'yilsa — «keldi»
-  else if (btn.dataset.jd !== undefined) { if (s !== '+' && s !== 'k') { s = '+'; d = true; } else d = !d; }
-  else if (btn.dataset.jclr !== undefined) { s = ''; b = ''; d = false; }
+  const R = yilRect(); if (!R) return;
+  const cur = yilRectCells(R).map(c => Object.assign({ c }, yilCell(c.o.belgilar[yilJ.iso.indexOf(c.iso)])));
+  const plus = v => v.s === '+' || v.s === 'k';
+  let f;
+  if (btn.dataset.js !== undefined) {
+    const x = btn.dataset.js, off = cur.every(v => v.s === x);
+    f = v => { const s = off ? '' : x; let b = v.b, d = v.d; if (s === '-' || s === 's') { b = ''; d = false; } if (!s) d = false; return { s, b, d }; };
+  } else if (btn.dataset.jb !== undefined) {   // baho qo'yilsa — «keldi»
+    const g = +btn.dataset.jb, off = cur.every(v => v.b !== '' && Number(v.b) === g);
+    f = v => { const b = off ? '' : g, s = b !== '' && !plus(v) ? '+' : v.s; return { s, b, d: v.d }; };
+  } else if (btn.dataset.jd !== undefined) {
+    const on = !cur.every(v => v.d && plus(v));
+    f = v => on ? { s: plus(v) ? v.s : '+', b: v.b, d: true } : { s: v.s, b: v.b, d: false };
+  } else if (btn.dataset.jclr !== undefined) f = () => ({ s: '', b: '', d: false });
   else return;
   yilSnap();
-  const key = cur.o.n + '|' + jedSel.iso, [bc, bb] = cur.o.base[cur.i], bs = String(bc || '');
-  const same = bs.replace('d', '') === s && bs.includes('d') === !!d && String(bb ?? '') === String(b ?? '');
-  if (same) delete yilEdits[key]; else yilEdits[key] = { s, b, d: !!d };
+  let n = 0; cur.forEach(v => { const r = f(v); if (yilWrite(v.c.o, v.c.iso, r.s, r.b, r.d)) n++; });
+  if (!n) yilUndo.pop();
   yilEdSave(); drawYil(); jedDraw();
+  if (cur.length > 1) toast(n ? `${n} ta katak o'zgardi · «Saqlash»ni bosing · Ctrl+Z — bekor` : "Hech narsa o'zgarmadi", 2500);
 });
 // Klaviatura (kompyuterda tez kiritish): + - s k, 2-5, d — daftar, Delete — tozalash, ↑/↓ yoki Enter — o'quvchi, ←/→ — sana, Esc — yopish
 document.addEventListener('keydown', e => {
   if ($('#jed').classList.contains('hide') || !jedSel || !yilJ || e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
   const k = e.key.toLowerCase(), q = sel => { const b = $('#jed').querySelector(sel); if (b) { e.preventDefault(); b.click(); } };
+  if (e.shiftKey && /^arrow/.test(k)) {   // Shift+strelka — belgilashni kengaytirish
+    const vis = yilIdx(yilJ).map(i => yilJ.iso[i]), b = yilRng ? yilRng.b : jedSel;
+    let si = b.si, c = vis.indexOf(b.iso);
+    if (k === 'arrowdown') si++; else if (k === 'arrowup') si--; else if (k === 'arrowright') c++; else c--;
+    e.preventDefault();
+    if (si < 0 || si >= yilJ.oquvchilar.length || c < 0 || c >= vis.length) return;
+    yilColSel = null; return jedOpen(jedSel.si, jedSel.iso, { a: { ...jedSel }, b: { si, iso: vis[c] } });
+  }
   if (k === '+' || k === '=') q('[data-js="+"]'); else if (k === '-') q('[data-js="-"]'); else if (k === 's' || k === 'ы') q('[data-js="s"]'); else if (k === 'k' || k === 'л') q('[data-js="k"]');
   else if (/^[2-5]$/.test(k)) q(`[data-jb="${k}"]`); else if (k === 'd' || k === 'в') q('[data-jd]'); else if (k === 'delete' || k === 'backspace') q('[data-jclr]');
   else if (k === 'arrowdown' || k === 'enter') q('[data-jn="1"]'); else if (k === 'arrowup') q('[data-jn="-1"]'); else if (k === 'escape') q('#jedX');
@@ -1674,14 +1763,20 @@ function yilColPayload(key) {
   }
   return { key, lab, n: vals.length, cells, text: vals.map(v => String(v ?? '')).join('\n') + '\n', html: cpHtml(vals.map(v => [v]), [kind]) };
 }
-function yilCellPayload(si, iso) {
-  const J = yilJ, i = J.iso.indexOf(iso), o = J.oquvchilar[si]; if (i < 0 || !o) return null;
-  const v = yilCpVal(o.belgilar[i]);
-  return { key: si + '|' + iso, lab: 'Katak', n: 1, cells: yilCpM === 'bb' ? [[yilCell(o.belgilar[i])]] : null, text: v + '\n', html: cpHtml([[v]], [yilCpM === 'b' ? 'num' : 'txt']) };
+// Belgilangan to'rtburchak (bitta katak ham) uchun
+function yilRectPayload(R) {
+  const J = yilJ, rows = [], cells = [], mark = new Set(), nc = R.c2 - R.c1 + 1;
+  for (let r = R.r1; r <= R.r2; r++) {
+    const o = J.oquvchilar[r], rr = [], cc = [];
+    for (let c = R.c1; c <= R.c2; c++) { const v = o.belgilar[J.iso.indexOf(R.vis[c])]; rr.push(yilCpVal(v)); cc.push(yilCell(v)); mark.add(r + '|' + R.vis[c]); }
+    rows.push(rr); cells.push(cc);
+  }
+  const n = rows.length * nc, kind = yilCpM === 'b' ? 'num' : 'txt';
+  return { key: mark, lab: n > 1 ? `${n} ta katak` : 'Katak', n: rows.length, cells: yilCpM === 'bb' ? cells : null, text: cpTsv(rows) + '\n', html: cpHtml(rows, Array(nc).fill(kind)) };
 }
 function yilAfterCopy(p) {
-  yilClipBuf = p.cells ? { text: p.text, cells: p.cells } : null; yilCopied = p.key; drawYil();
-  toast(`${p.lab} nusxalandi ✓${p.n > 1 ? ` (${p.n} qator)` : ''} — boshqa sanani tanlab Ctrl+V bosing yoki Excel'ga qo'ying`, 3200);
+  yilClipBuf = p.cells ? { text: p.text, cells: p.cells } : null; yilCopied = p.key; drawYil(); if (jedSel) jedDraw();
+  toast(`${p.lab} nusxalandi ✓${p.n > 1 ? ` (${p.n} qator)` : ''} — boshqa joyni belgilab Ctrl+V bosing yoki Excel'ga qo'ying`, 3200);
 }
 async function yilCopyCol(key) {
   const p = yilColPayload(key); if (!p) return;
@@ -1697,16 +1792,21 @@ function yilParse(t) {
   if (!s && (m[2] || d)) s = '+';
   return { s, b: m[2] ? +m[2] : '', d };
 }
-// Bitta katakka yozish (tahrirlar ro'yxatiga) — qiymat o'zgargan bo'lsa true
-function yilPut(o, iso, s, b, d) {
+// Bitta katakka yozish (tahrirlar ro'yxatiga; asl qiymatga qaytsa — tahrir o'chadi) — qiymat o'zgargan bo'lsa true
+function yilWrite(o, iso, s, b, d) {
   const i = yilJ.iso.indexOf(iso); if (i < 0) return false;
+  s = s || ''; b = b ?? ''; d = !!d;
+  const cur = yilCell(o.belgilar[i]), [bc, bb] = o.base[i], bs = String(bc || ''), key = o.n + '|' + iso;
+  if (bs.replace('d', '') === s && bs.includes('d') === d && String(bb ?? '') === String(b)) delete yilEdits[key]; else yilEdits[key] = { s, b, d };
+  return !(cur.s === s && cur.d === d && String(cur.b) === String(b));
+}
+// Qo'yilgan qiymatni to'g'rilab yozish (baho bor — «keldi»; «−»/«S» — bahosiz)
+function yilPut(o, iso, s, b, d) {
   s = s || ''; b = b === '' || b == null ? '' : +b; d = !!d;
   if (s === '-' || s === 's') b = '';
   if (b !== '' && s !== '+' && s !== 'k') s = '+';
   if (s !== '+' && s !== 'k') d = false;
-  const cur = yilCell(o.belgilar[i]), [bc, bb] = o.base[i], bs = String(bc || ''), key = o.n + '|' + iso;
-  if (bs.replace('d', '') === s && bs.includes('d') === d && String(bb ?? '') === String(b)) delete yilEdits[key]; else yilEdits[key] = { s, b, d };
-  return !(cur.s === s && cur.d === d && String(cur.b) === String(b));
+  return yilWrite(o, iso, s, b, d);
 }
 function yilSnap() { yilUndo.push(JSON.stringify(yilEdits)); if (yilUndo.length > 50) yilUndo.shift(); }
 function yilUndoDo() {
@@ -1717,12 +1817,9 @@ function yilUndoDo() {
 // Ctrl+V: tanlangan ustunga (1-qatordan) yoki tanlangan katakdan boshlab pastga/o'ngga — Excel'dagidek
 function yilPaste(txt) {
   const J = yilJ, vis = yilIdx(J).map(i => J.iso[i]);
-  let r0, c0, col = false;
-  if (jedSel) { r0 = jedSel.si; c0 = vis.indexOf(jedSel.iso); }
-  else if (yilColSel === 'name' || yilColSel === 'avg') return toast("Bu ustunga qo'yib bo'lmaydi — sana ustunini tanlang", 3000);
-  else if (yilColSel) { r0 = 0; c0 = vis.indexOf(yilColSel); col = true; }
-  else return toast("Avval sana (ustun nomi) yoki katakni bosib tanlang, keyin Ctrl+V", 3000);
-  if (c0 < 0) return toast("Tanlangan sana bu davrda ko'rinmayapti");
+  if (!jedSel && (yilColSel === 'name' || yilColSel === 'avg')) return toast("Bu ustunga qo'yib bo'lmaydi — sana ustunini tanlang", 3000);
+  const R = yilRect(); if (!R) return toast("Avval katak(lar)ni yoki sana ustunini belgilang, keyin Ctrl+V", 3000);
+  const r0 = R.r1, c0 = R.c1, multi = yilRectN(R) > 1;
   txt = String(txt || '').replace(/\r\n?/g, '\n');
   if (!txt) return toast("Clipboard bo'sh — avval nusxa oling");
   let rows;
@@ -1739,7 +1836,9 @@ function yilPaste(txt) {
     }
     rows = grid.map(r => r.map(yilParse));
   }
-  if (col && rows.length === 1 && rows[0].length === 1) rows = J.oquvchilar.map(() => [rows[0][0]]);   // 1 qiymat — butun ustunga
+  if (multi && rows.length === 1 && rows[0].length === 1) {   // 1 qiymat — belgilangan barcha kataklarga
+    const v = rows[0][0]; rows = []; for (let r = R.r1; r <= R.r2; r++) rows.push(Array(R.c2 - R.c1 + 1).fill(v));
+  }
   yilSnap();
   let n = 0, bad = 0, cut = 0; const used = new Set();
   rows.forEach((r, ri) => {
@@ -1766,7 +1865,7 @@ function yilClearCol() {
 async function yilColAct(a) {
   if (a === 'copy') return yilCopyCol(yilColSel);
   if (a === 'clr') return yilClearCol();
-  if (a === 'x') { yilColSel = null; yilCopied = null; return drawYil(); }
+  if (a === 'x') { jedClose(); yilColSel = null; yilCopied = null; return drawYil(); }
   if (a === 'paste') {
     try { yilPaste(await navigator.clipboard.readText()); }
     catch (e) { toast("Brauzer clipboard'ni o'qishga ruxsat bermadi — klaviaturada Ctrl+V bosing", 3500); }
@@ -1777,7 +1876,8 @@ const yilKbOk = () => !$('#yil').classList.contains('hide') && yilJ && yilMode =
 document.addEventListener('copy', e => {
   if (!yilKbOk()) return;
   const ws = window.getSelection(); if (ws && !ws.isCollapsed && String(ws).trim()) return;
-  const p = jedSel ? yilCellPayload(jedSel.si, jedSel.iso) : yilColSel ? yilColPayload(yilColSel) : null; if (!p) return;
+  const R = yilRect(), whole = yilColSel && R && R.r1 === 0 && R.r2 === yilJ.oquvchilar.length - 1 && R.c1 === R.c2 && R.vis[R.c1] === yilColSel;
+  const p = whole || (!R && yilColSel) ? yilColPayload(yilColSel) : R ? yilRectPayload(R) : null; if (!p) return;
   e.preventDefault(); e.clipboardData.setData('text/plain', p.text); e.clipboardData.setData('text/html', p.html);
   yilAfterCopy(p);
 });
@@ -1791,6 +1891,10 @@ document.addEventListener('keydown', e => {
   if (!yilKbOk() || document.activeElement.tagName === 'SELECT') return;
   const k = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (k === 'z' || k === 'я')) { e.preventDefault(); return yilUndoDo(); }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (k === 'a' || k === 'ф') && (jedSel || yilColSel)) {   // Ctrl+A — hammasini belgilash
+    const vis = yilIdx(yilJ).map(i => yilJ.iso[i]), last = yilJ.oquvchilar.length - 1; if (!vis.length || last < 0) return;
+    e.preventDefault(); yilColSel = null; return jedOpen(0, vis[0], { a: { si: 0, iso: vis[0] }, b: { si: last, iso: vis[vis.length - 1] } }, true);
+  }
   if (e.ctrlKey || e.metaKey || e.altKey || jedSel || !yilColSel) return;
   if (k === 'escape') { yilColSel = null; yilCopied = null; drawYil(); }
   else if (k === 'delete' || k === 'backspace') { e.preventDefault(); yilClearCol(); }
