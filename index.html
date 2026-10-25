@@ -137,7 +137,8 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .jtbl td.jrs{background-image:linear-gradient(rgba(79,70,229,.17),rgba(79,70,229,.17))}
 .jtbl td.jrs.jcpd{background-image:linear-gradient(var(--ok) 50%,transparent 50%),linear-gradient(var(--ok) 50%,transparent 50%),linear-gradient(rgba(79,70,229,.17),rgba(79,70,229,.17));background-size:2px 8px,2px 8px,100% 100%;background-repeat:repeat-y,repeat-y,no-repeat;background-position:left top,right top,0 0}
 .jtbl table{user-select:none;-webkit-user-select:none}
-.jtbl td.jfl{background-image:linear-gradient(rgba(22,163,74,.2),rgba(22,163,74,.2))}
+.jtbl td.jc.jfl{background-image:linear-gradient(rgba(22,163,74,.2),rgba(22,163,74,.2))}
+.jtbl td.jc.jfx{background-image:linear-gradient(rgba(107,112,132,.45),rgba(107,112,132,.45));opacity:.6}
 .jtbl td.jfhc{position:relative}
 .jfh{position:absolute;right:-5px;bottom:-5px;width:9px;height:9px;background:var(--pri);border:1.5px solid var(--card);border-radius:2px;cursor:crosshair;z-index:1;touch-action:none}
 .jfh::after{content:'';position:absolute;inset:-9px}
@@ -1529,14 +1530,14 @@ function yilGridHtml(J) {
     const cp = yilCopied instanceof Set && yilCopied.has(si + '|' + d) ? ' jcpd' : '';
     const rs = multi && yilInRect(R, si, d) ? ' jrs' : '';
     const fh = jedSel && R && si === R.r2 && d === R.vis[R.c2];   // to'ldirish dastasi — belgilangan joyning pastki o'ng burchagida
-    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}${cc(d)}${cp}${rs}${fh ? ' jfhc' : ''}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}${fh ? '<i class="jfh" title="Tortib — to\'ldirish (Excel\'dagidek) · 2 marta bosish — pastgacha"></i>' : ''}</td>`;
+    return `<td class="jc ${cls}${c.includes('d') ? ' jdf' : ''}${ed}${sel}${cc(d)}${cp}${rs}${fh ? ' jfhc' : ''}" data-jc="${si}|${d}">${SYM[s] || ''}${b !== '' && b != null ? `<b>${esc(b)}</b>` : ''}${fh ? '<i class="jfh" title="Tashqariga tortib — to\'ldirish, ichkariga tortib — o\'chirish (Excel\'dagidek) · 2 marta bosish — pastgacha"></i>' : ''}</td>`;
   }).join('') + `<td class="${cc('avg')}"><b>${yilAvg(o, idx) ?? '—'}</b></td></tr>`).join('');
   const cpm = (v, t) => `<option value="${v}" ${yilCpM === v ? 'selected' : ''}>${t}</option>`;
   const isD = csel && csel !== 'name' && csel !== 'avg';
   const bar = csel ? `<div class="jcolbar"><span><b>${isD ? esc(yilDFull(csel)) : csel === 'name' ? 'F.I.Sh.' : "O'rt."}</b> ustuni tanlandi</span>
     <button data-cact="copy">📋 Nusxalash <kbd>Ctrl+C</kbd></button>${isD ? `<button data-cact="paste">📥 Qo'yish <kbd>Ctrl+V</kbd></button><button data-cact="clr">🧹 Tozalash <kbd>Del</kbd></button>` : ''}
     <button data-cact="x" title="Tanlovni olib tashlash (Esc)">✕</button></div>` : '';
-  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Excel'dagidek: katakni bosing yoki <b>surib belgilang</b> (Shift ham ishlaydi) → <b>2 3 4 5</b>, <b>+ − S K</b> — hammasiga qo'yiladi. Sana ustiga bosing — butun ustun. Burchakdagi <b>■</b> ni tortib — <b>to'ldirish</b> (2 marta bosish — oxirgi o'quvchigacha). <b>Ctrl+C</b> / <b>Ctrl+V</b> / <b>Ctrl+Z</b> / <b>Ctrl+A</b>.</div>
+  return `<div class="jtop"><div class="small" style="flex:1;min-width:200px">Excel'dagidek: katakni bosing yoki <b>surib belgilang</b> (Shift ham ishlaydi) → <b>2 3 4 5</b>, <b>+ − S K</b> — hammasiga qo'yiladi. Sana ustiga bosing — butun ustun. Burchakdagi <b>■</b> ni tashqariga tortib — <b>to'ldirish</b> (2 marta bosish — oxirgi o'quvchigacha), ichkariga tortib — <b>o'chirish</b>. <b>Ctrl+C</b> / <b>Ctrl+V</b> / <b>Ctrl+Z</b> / <b>Ctrl+A</b>.</div>
     <div class="jcp" title="Jadvalni Excel / Google Sheets / Word'ga qo'yish uchun nusxalash"><select id="yilCpM" title="Nima nusxalansin">${cpm('bb', 'Belgi + baho')}${cpm('b', 'Faqat baho')}${cpm('d', 'Faqat davomat')}</select><button id="yilCp">📋 Jadvalni nusxalash</button></div>
     <label class="jadd" title="Jadvalda yo'q kunni qo'shish">➕ Sana <input type="date" id="yilAdd" min="${YIL_BOSH}" max="${today}"></label></div>
     ${bar}<div class="tblwrap jtbl"><table><thead><tr><th class="l${cc('name')}" data-jcol="name" title="Bosing — F.I.Sh. ustunini tanlash">F.I.Sh.</th>${head}<th class="${cc('avg')}" data-jcol="avg" title="Bosing — o'rtacha baho ustunini tanlash">O'rt.</th></tr></thead><tbody>${body}</tbody></table></div>`;
@@ -1633,12 +1634,25 @@ document.addEventListener('mouseup', () => {
   if (R && yilRectN(R) > 1) jedOpen(d.si, d.iso, yilRng, true); else jedOpen(d.si, d.iso);
 });
 // ---------- To'ldirish dastasi (Excel'dagidek): burchakdagi ■ ni tortib — belgilangan qiymatlar pastga/yuqoriga/o'ngga/chapga takrorlanadi ----------
-let yilFill = null;   // {S — manba to'rtburchak, T — kengaytirilgan to'rtburchak}
-function yilPaintFill(T, S) {
+let yilFill = null;   // {S — manba to'rtburchak, T — kengaytirilgan (to'ldirish), C — o'chiriladigan qism (ichkariga tortilganda)}
+function yilPaintFill(T, S, C) {
   $('#yilBody').querySelectorAll('td[data-jc]').forEach(td => {
     const [a, iso] = td.dataset.jc.split('|'), si = +a;
     td.classList.toggle('jfl', !!(T && yilInRect(T, si, iso) && !yilInRect(S, si, iso)));
+    td.classList.toggle('jfx', !!(C && yilInRect(C, si, iso)));
   });
+}
+// Dastani belgilangan joy ichiga (yuqoriga / chapga) tortish — Excel'dagidek, kulrang bo'lgan kataklar o'chiriladi
+function yilDoClear(S, C) {
+  yilSnap(); let n = 0;
+  yilRectCells(C).forEach(x => { if (yilWrite(x.o, x.iso, '', '', false)) n++; });
+  if (!n) yilUndo.pop();
+  yilEdSave();
+  const N = C.r1 > S.r1 ? Object.assign({}, S, { r2: C.r1 - 1 }) : Object.assign({}, S, { c2: C.c1 - 1 });   // qolgan qism belgilangan bo'lib qoladi
+  const a = jedSel && yilInRect(N, jedSel.si, jedSel.iso) ? { ...jedSel } : { si: N.r1, iso: N.vis[N.c1] }, ac = N.vis.indexOf(a.iso);
+  const b = { si: Math.abs(a.si - N.r1) > Math.abs(a.si - N.r2) ? N.r1 : N.r2, iso: N.vis[Math.abs(ac - N.c1) > Math.abs(ac - N.c2) ? N.c1 : N.c2] };
+  yilColSel = null; jedOpen(a.si, a.iso, { a, b }, true);
+  toast(n ? `O'chirildi ✓ — ${n} katak · «Saqlash»ni bosing · Ctrl+Z — bekor` : "Bu kataklar allaqachon bo'sh", 2800);
 }
 function yilDoFill(S, T) {
   const J = yilJ, h = S.r2 - S.r1 + 1, w = S.c2 - S.c1 + 1, md = (x, m) => ((x % m) + m) % m;
@@ -1679,12 +1693,19 @@ document.addEventListener('pointermove', e => {
   const T = !dr && !dc ? null : Math.abs(dr) >= Math.abs(dc)
     ? { r1: Math.min(S.r1, si), r2: Math.max(S.r2, si), c1: S.c1, c2: S.c2, vis: S.vis }
     : { r1: S.r1, r2: S.r2, c1: Math.min(S.c1, c), c2: Math.max(S.c2, c), vis: S.vis };
-  yilFill.T = T; yilPaintFill(T, S);
+  // Ichkariga tortilsa — ko'rsatkichdan pastdagi qatorlar (yoki o'ngdagi ustunlar) o'chirishga belgilanadi
+  let C = null;
+  if (!T) {
+    const vr = S.r2 - si, hc = S.c2 - c;
+    if (vr > 0 && vr >= hc) C = { r1: si + 1, r2: S.r2, c1: S.c1, c2: S.c2, vis: S.vis };
+    else if (hc > 0) C = { r1: S.r1, r2: S.r2, c1: c + 1, c2: S.c2, vis: S.vis };
+  }
+  yilFill.T = T; yilFill.C = C; yilPaintFill(T, S, C);
 }, { passive: false });
 document.addEventListener('pointerup', () => {
   if (!yilFill) return;
-  const { S, T } = yilFill; yilFill = null;
-  if (T) yilDoFill(S, T); else yilPaintFill(null);
+  const { S, T, C } = yilFill; yilFill = null;
+  if (T) yilDoFill(S, T); else if (C) yilDoClear(S, C); else yilPaintFill(null);
 });
 document.addEventListener('pointercancel', () => { if (yilFill) { yilFill = null; yilPaintFill(null); } });
 // Dastani 2 marta bosish — oxirgi o'quvchigacha pastga to'ldirish
