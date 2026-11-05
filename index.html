@@ -194,6 +194,14 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .hist{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 12px}
 .hist .hc{width:40px;border-radius:8px;padding:3px 0;text-align:center;font-size:10px;line-height:1.2;background:var(--bg);color:var(--muted)}
 .hist .hc b{display:block;font-size:13px}
+.stuops{margin-top:18px;padding-top:14px;border-top:1.5px dashed var(--line)}
+.stuops .opt{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px}
+.stuops .oprow{display:flex;gap:8px;flex-wrap:wrap}
+.stuops .oprow .btn{flex:1 1 140px;padding:11px 12px;font-size:14px}
+.stuops .btn:disabled{opacity:.5}
+.stuops #mvBox{margin-top:10px;display:grid;gap:8px}
+.stuops .opall{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer}
+.stuops .opnote{margin:10px 0 0;font-size:12px}
 .hist .h-plus{background:var(--ok-soft);color:var(--ok)} .hist .h-minus{background:var(--no-soft);color:var(--no)} .hist .h-s{background:var(--sab-soft);color:var(--sab)} .hist .h-k{background:var(--late-soft);color:var(--late)} .hist .h-d{outline:2px solid var(--daf)}
 .filt{padding:9px 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--text)}
 .seg{display:flex;background:var(--bg);border-radius:12px;padding:3px;gap:3px}
@@ -412,7 +420,7 @@ th.l{z-index:3}
 </section>
 
 <div id="metaM" class="hide" style="position:fixed;inset:0;z-index:60;background:rgba(10,12,30,.45);display:grid;place-items:center;padding:16px">
-  <form class="lcard" style="max-width:400px;width:100%">
+  <form class="lcard" style="max-width:400px;width:100%;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto">
     <h1 style="font-size:18px" id="metaName"></h1>
     <p class="small" id="metaStat"></p>
     <div class="hist" id="metaHist"></div>
@@ -425,6 +433,19 @@ th.l{z-index:3}
     <label class="fld"><span>O'quvchi holati bo'yicha izoh</span><textarea name="izoh" rows="4" style="width:100%;padding:10px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);font:inherit;resize:vertical" placeholder="Masalan: ota-onasi bilan gaplashildi, 2 hafta kasal bo'ldi…"></textarea></label>
     <div style="display:flex;gap:8px"><button type="button" class="btn" data-x style="background:var(--bg)">Bekor</button>
     <button class="btn btn-pri" style="flex:1">Saqlash</button></div>
+    <div class="stuops">
+      <div class="opt">Ro'yxat</div>
+      <label class="opall hide" id="opAll"><input type="checkbox" id="opAllCb" checked> <span id="opAllTx">Barcha paralarda (I, II, III)</span></label>
+      <div class="oprow">
+        <button type="button" class="btn" id="mvBtn" style="background:var(--pri-soft);color:var(--pri)">↪ Boshqa guruhga</button>
+        <button type="button" class="btn" id="rmBtn" style="background:var(--no-soft);color:var(--no)">🗑 Ro'yxatdan o'chirish</button>
+      </div>
+      <div class="hide" id="mvBox">
+        <select id="mvSel" class="filt" style="width:100%"></select>
+        <button type="button" class="btn btn-pri btn-block" id="mvGo">O'tkazish</button>
+      </div>
+      <p class="small opnote">Eski guruhdagi qatori o'chiriladi, nusxasi (barcha belgi va baholari bilan) boshqaruv faylining «Arxiv» varag'ida qoladi.</p>
+    </div>
   </form>
 </div>
 <!-- ================= UMUMIY YILLIK (davomat oynasidan) ================= -->
@@ -835,6 +856,7 @@ function openMeta(o) {
     const sym = { '+': '+', '-': '−', s: 'S', k: 'K' }[c.replace('d', '')] || '·';
     return `<div class="hc ${k}${c.includes('d') ? ' h-d' : ''}" title="${esc(sn[i] || '')}${c.includes('d') ? ' · daftar yo\'q' : ''}">${esc(sn[i] || '')}<b>${sym}${b !== '' && b != null ? ' ' + esc(b) : ''}</b></div>`;
   }).join('') : '';
+  stuOpsReset(att.guruh);
   M.classList.remove('hide');
 }
 $('#metaM').querySelector('[data-x]').onclick = () => $('#metaM').classList.add('hide');
@@ -846,6 +868,94 @@ $('#metaM').querySelector('form').onsubmit = e => {
   api('saveMeta', { group: g, r: metaO.r, name: metaO.name, rol: v.rol, izoh: v.izoh })
     .then(() => toast("Izoh saqlandi ✓")).catch(e => toast("Izoh faqat shu qurilmada saqlandi (" + e.message + ")", 3500));
 };
+
+/* ---------- O'quvchini boshqa guruhga o'tkazish / ro'yxatdan o'chirish ---------- */
+// Sheets'da qator o'chirilgach pastdagi o'quvchilarning qator raqami (r) bittaga suriladi —
+// shuning uchun shu qurilmadagi barcha r bo'yicha saqlangan narsalar (kesh, qoralama, navbat, izoh) ham suriladi.
+let stuBusy = false, stuRun = false;
+const famOf = g => KUNLIK[g] ? INIT.guruhlar.map(x => x.id).filter(id => KUNLIK[id] && id.split(' ')[0] === String(g).split(' ')[0]) : [g];
+function stuShift(g, r0) {
+  r0 = Number(r0);
+  const fixArr = a => Array.isArray(a) ? a.filter(o => Number(o.r) !== r0).map(o => Number(o.r) > r0 ? Object.assign({}, o, { r: Number(o.r) - 1 }, o.n !== undefined && o.n !== '' && !isNaN(Number(o.n)) ? { n: Number(o.n) - 1 } : {}) : o) : a;
+  const fixObj = m => { const out = {}; Object.keys(m || {}).forEach(k => { const r = Number(k); if (r === r0) return; out[r > r0 ? r - 1 : k] = m[k]; }); return out; };
+  const keys = []; try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); } catch (e) {}
+  keys.forEach(full => {
+    if (!full || !full.startsWith('dv_')) return;
+    const k = full.slice(3), p = k.split('|'); if (p[1] !== g) return;
+    if (p[0] === 'les') LS.set(k, fixArr(LS.get(k, [])));
+    else if (p[0] === 'draft' || p[0] === 'qf') { const v = fixObj(LS.get(k, {})); if (Object.keys(v).length) LS.set(k, v); else LS.del(k); }
+    else if (p[0] === 'meta') LS.set(k, fixObj(LS.get(k, {})));
+    else if (p[0] === 'stu' || p[0] === 'rep') LS.del(k);
+  });
+  LS.set('pending', LS.get('pending', []).map(j => j.group === g ? Object.assign({}, j, { marks: fixArr(j.marks) }) : j));
+  if (META[g]) META[g] = fixObj(META[g]);
+  delete repCache[g]; delete STAT[g]; delete SANA[g];
+  LS.del('overview');
+}
+function stuOpsReset(g) {
+  const fam = famOf(g);
+  $('#opAll').classList.toggle('hide', fam.length < 2);
+  $('#opAllTx').textContent = 'Barcha paralarda (' + fam.map(x => x.split(' ').slice(1).join(' ') || x).join(', ') + ')';
+  $('#opAllCb').checked = true;
+  $('#mvBox').classList.add('hide');
+  // O'tkaziladigan guruhlar: 05-25 paralari bitta variant bo'lib chiqadi (hammasiga qo'shiladi)
+  const seen = new Set(fam), opts = [];
+  INIT.guruhlar.forEach(x => {
+    if (seen.has(x.id)) return;
+    const f = famOf(x.id); f.forEach(y => seen.add(y));
+    const label = f.length > 1 ? f[0].split(' ')[0] + ' (' + f.map(y => y.split(' ').slice(1).join(' ') || y).join(', ') + ' para)' : x.id + (x.nomi ? ' — ' + x.nomi : '');
+    opts.push(`<option value="${esc(f.join('|'))}">${esc(label)}</option>`);
+  });
+  $('#mvSel').innerHTML = '<option value="">— qaysi guruhga? —</option>' + opts.join('');
+  stuOpsBusy(false);
+}
+function stuOpsBusy(on) { ['#mvBtn', '#rmBtn', '#mvGo', '#mvSel', '#opAllCb'].forEach(s => { $(s).disabled = on; }); }
+async function stuOp(kind) {   // kind: 'rm' — o'chirish, 'mv' — boshqa guruhga o'tkazish
+  if (!att || !metaO || stuRun) return;
+  const g = att.guruh, d = att.sana, o = metaO, name = o.name;
+  const fam = $('#opAllCb').checked ? famOf(g) : [g];
+  const targets = kind === 'mv' ? String($('#mvSel').value || '').split('|').filter(Boolean) : [];
+  if (kind === 'mv' && !targets.length) { toast("Qaysi guruhga o'tkazishni tanlang"); $('#mvSel').focus(); return; }
+  const yil = fam.filter(x => Object.keys(LS.get('yiled|' + x, {})).length);
+  if (yil.length) return toast(yil.join(', ') + " jurnalida (✏️ Jurnal) saqlanmagan o'zgarishlar bor — avval ularni saqlang", 5000);
+  const ask = kind === 'mv'
+    ? `${name}\n\n${fam.join(', ')}  →  ${targets.join(', ')}\n\nYangi guruh ro'yxatining oxiriga qo'shiladi va eski guruhdan o'chiriladi. Eski belgi va baholari «Arxiv» varag'ida saqlanadi. Davom etilsinmi?`
+    : `${name}\n\n${fam.join(', ')} ro'yxatidan o'chirilsinmi?\n\nGoogle Sheets'dagi qatori o'chiriladi, nusxasi (belgi va baholari bilan) «Arxiv» varag'ida saqlanadi.`;
+  if (!confirm(ask)) return;
+  stuRun = true; stuOpsBusy(true);
+  const rosters = {}; fam.forEach(x => { rosters[x] = LS.get('stu|' + x, null); });
+  try {
+    if (att.dirty) saveDraft();
+    toast(kind === 'mv' ? "O'tkazilmoqda…" : "O'chirilmoqda…", 15000);
+    // Navbatdagi davomatlar eski qator raqamlari bilan yozilib ketmasligi uchun: avval ularni yuboramiz, amal tugaguncha navbat to'xtaydi
+    while (flushing) await new Promise(r => setTimeout(r, 300));
+    await flushPending();
+    stuBusy = true;
+    const j = await api(kind === 'mv' ? 'moveStudent' : 'removeStudent', { group: g, r: o.r, name, target: targets[0] }, 1);
+    if (!j || j.r == null) throw new Error("Server bu amalni bilmaydi — Apps Script'ni yangilang (apps-script/qoshimcha.gs → Deploy → New version)");
+    stuShift(g, j.r);
+    const errs = [];
+    for (const x of fam.filter(x => x !== g)) {   // 05-25 ning boshqa paralari
+      const was = (rosters[x] || []).find(y => norm(y.name) === norm(name));
+      try { const k = await api('removeStudent', { group: x, r: was ? was.r : o.r, name }, 1); stuShift(x, k.r); }
+      catch (e) { if (/topilmadi/i.test(e.message)) { if (was) stuShift(x, was.r); } else errs.push(x + ': ' + e.message); }
+    }
+    for (const t of targets.slice(1)) {   // yangi guruh 05-25 bo'lsa — qolgan paralariga ham qo'shamiz
+      try { await api('addStudent', { group: t, name }, 1); } catch (e) { if (!/ro'yxatda bor/.test(e.message)) errs.push(t + ': ' + e.message); }
+    }
+    targets.forEach(t => { LS.del('stu|' + t); LS.del('rep|' + t); delete repCache[t]; });
+    LS.del('overview');
+    $('#metaM').classList.add('hide');
+    const short = name.split(' ').slice(0, 2).join(' ');
+    stuBusy = false;
+    openAtt(g, d);   // ro'yxat qayta yuklanadi (saqlanmagan belgilar qoralamadan tiklanadi)
+    toast((kind === 'mv' ? `${short} → ${targets[0].split(' ')[0]} guruhiga o'tkazildi ✓` + (j.target && j.target.mavjud ? " (u yerda allaqachon bor edi)" : '') : `${short} ro'yxatdan o'chirildi ✓`) + (errs.length ? ' · ⚠ ' + errs.join('; ') : ''), errs.length ? 7000 : 3500);
+  } catch (e) { toast(e.message, 6000); }
+  finally { stuBusy = false; stuRun = false; stuOpsBusy(false); flushPending(); }
+}
+$('#mvBtn').onclick = () => { $('#mvBox').classList.toggle('hide'); if (!$('#mvBox').classList.contains('hide')) $('#mvSel').focus(); };
+$('#mvGo').onclick = () => stuOp('mv');
+$('#rmBtn').onclick = () => stuOp('rm');
 /* ---------- Ovozli davomat (Web Speech API) ---------- */
 // O'quvchini FAMILIYA/ISM yoki TARTIB RAQAMI bilan aytish mumkin: «Karimov yo'q», «12 besh», «uch kechikdi», «Aliyev daftar yo'q», «hammasi keldi».
 // Har bir pauza — alohida jumla. Google bir nechta variant beradi — eng tushunarlisi olinadi.
@@ -1358,6 +1468,7 @@ function pendBadge() { const n = LS.get('pending', []).length; const b = $('#pen
 let flushing = false, flushAgain = false;
 async function flushPending() {
   pendBadge();
+  if (stuBusy) { setTimeout(flushPending, 3000); return; }   // o'quvchi o'chirilayotgan/o'tkazilayotgan payt — qator raqamlari surilguncha kutamiz
   if (flushing) { flushAgain = true; return; }
   flushing = true;
   try {
@@ -2338,12 +2449,13 @@ const Demo = (() => {
     ['06-26', 1, 'I', 'har'], ['06-26', 2, 'I', 'har'], ['07-26', 3, 'III', 'toq'], ['07-26', 4, 'III', 'har'], ['07-26', 5, 'III', 'har'], ['08-26', 1, 'II', 'har'], ['08-26', 2, 'III', 'har'], ['09-26', 6, 'III', 'har'], ['10-26', 3, 'II', 'har'], ['10-25', 1, 'III', 'juft'], ['05-25 I', 1, 'I', 'har'], ['05-25 II', 1, 'II', 'har'], ['05-25 III', 1, 'III', 'har'], ['05-25 I', 2, 'I', 'har'], ['05-25 II', 2, 'II', 'har'], ['05-25 III', 2, 'III', 'har'], ['05-25 I', 3, 'I', 'har'], ['05-25 II', 3, 'II', 'har'], ['05-25 III', 3, 'III', 'har'], ['05-25 I', 4, 'I', 'har'], ['05-25 II', 4, 'II', 'har'], ['05-25 III', 4, 'III', 'har'], ['05-25 I', 5, 'I', 'har'], ['05-25 II', 5, 'II', 'har'], ['05-25 III', 5, 'III', 'har'], ['05-25 I', 6, 'I', 'har'], ['05-25 II', 6, 'II', 'har'], ['05-25 III', 6, 'III', 'har']];
   const V = { I: '08:30-09:50', II: '10:00-11:20', III: '11:30-12:50' };
   const names = ['Abduraximov Saidalo Rustam o\'g\'li', 'Ashirboyev Abdulloh Shahriddin o\'g\'li', 'Baxtiyarova Bekzoda Boxodir qizi', 'Ergasheva Mubina Anvar qizi', 'Ikramov Azamat Jonibek o\'g\'li', 'Karimov Zoxirshoh Kamoliddin o\'g\'li', 'Minasyan David Vyacheslavovich', 'Mirolimova Mohinur Kamoliddin qizi', 'Nosirov Farrux Doniyorovich', 'Odilov Muhammadrizo Shoikrom o\'g\'li', 'Qodirova Aziza Muslimjon qizi', 'Saidov Abdulloh Muxlis o\'g\'li'];
-  const store = {}, meta = {};
+  const store = {}, meta = {}, R = {};
+  const roster = g => R[g] || (R[g] = names.slice());   // har guruhning o'z ro'yxati
   let jadval = J.map(([g, k, j, h]) => ({ guruh: g, kun: k, juftlik: j, vaqt: V[j], xona: '310-xona', hafta: h }));
   const wait = () => new Promise(r => setTimeout(r, 250));
   const rep = g => {
     const dates = Object.keys(store).filter(k => k.startsWith(g + '|')).map(k => k.split('|')[1]).sort();
-    const S = names.map((n, i) => {
+    const S = roster(g).map((n, i) => {
       const st = { n: i + 1, name: n, keldi: 0, kelmadi: 0, sababli: 0, kechikdi: 0, daftarsiz: 0, bahoSoni: 0, ortacha: null, belgilar: [] }; let sum = 0;
       dates.forEach(d => { const m = store[g + '|' + d][i] || {}; const key = { '+': 'keldi', '-': 'kelmadi', s: 'sababli', k: 'kechikdi' }[m.s]; if (key) st[key]++; if (m.d) st.daftarsiz++; if (m.b) { st.bahoSoni++; sum += +m.b; } st.belgilar.push([(m.s || '') + (m.d ? 'd' : ''), m.b || '']); });
       st.ortacha = st.bahoSoni ? Math.round(sum / st.bahoSoni * 10) / 10 : null; return st;
@@ -2351,19 +2463,29 @@ const Demo = (() => {
     return { guruh: g, sanalar: dates.map(d => d.slice(8) + '.' + d.slice(5, 7)), oquvchilar: S };
   };
   const xul = g => { const r = rep(g); let a = 0, b = 0, s = 0, n = 0, f = 0; r.oquvchilar.forEach(o => { a += o.keldi + o.kechikdi + o.kelmadi + o.sababli; b += o.keldi + o.kechikdi; f += o.daftarsiz; if (o.ortacha) { s += o.ortacha * o.bahoSoni; n += o.bahoSoni; } });
-    return { guruh: g, nomi: (G.find(x => x[0] === g) || [])[1], oquvchiSoni: names.length, darslar: r.sanalar.length, sanalar: r.sanalar, davomat: a ? Math.round(b / a * 1000) / 10 : null, ortacha: n ? Math.round(s / n * 10) / 10 : null, daftarsiz: f }; };
+    return { guruh: g, nomi: (G.find(x => x[0] === g) || [])[1], oquvchiSoni: roster(g).length, darslar: r.sanalar.length, sanalar: r.sanalar, davomat: a ? Math.round(b / a * 1000) / 10 : null, ortacha: n ? Math.round(s / n * 10) / 10 : null, daftarsiz: f }; };
   return {
     async call(a, d) {
       await wait();
       if (a === 'init') return { ok: true, bugun: todayStr(), toqRef: '2026-09-28', guruhlar: G.map(([id, nomi]) => ({ id, nomi, url: '' })), jadval };
       if (a === 'day') { const wd = parseD(d.date).getDay(), w = weekType(d.date); const key = d.date.slice(8) + '.' + d.date.slice(5, 7);
-        return { ok: true, sana: d.date, darslar: jadval.filter(j => j.kun === wd && (j.hafta === 'har' || j.hafta === w)).map(j => Object.assign({ nomi: (G.find(x => x[0] === j.guruh) || [])[1], belgilangan: !!store[j.guruh + '|' + d.date], oquvchiSoni: names.length }, j)) }; }
-      if (a === 'lesson') { const s = store[d.group + '|' + d.date] || []; return { ok: true, oquvchilar: names.map((n, i) => ({ r: i + 3, n: i + 1, name: n, s: (s[i] || {}).s || '', b: (s[i] || {}).b || '', d: !!(s[i] || {}).d })) }; }
+        return { ok: true, sana: d.date, darslar: jadval.filter(j => j.kun === wd && (j.hafta === 'har' || j.hafta === w)).map(j => Object.assign({ nomi: (G.find(x => x[0] === j.guruh) || [])[1], belgilangan: !!store[j.guruh + '|' + d.date], oquvchiSoni: roster(j.guruh).length }, j)) }; }
+      if (a === 'lesson') { const s = store[d.group + '|' + d.date] || []; return { ok: true, oquvchilar: roster(d.group).map((n, i) => ({ r: i + 3, n: i + 1, name: n, s: (s[i] || {}).s || '', b: (s[i] || {}).b || '', d: !!(s[i] || {}).d })) }; }
       if (a === 'save') { store[d.group + '|' + d.date] = d.marks.map(m => ({ s: m.s, b: m.b, d: m.d })); return { ok: true, saqlandi: d.marks.length }; }
       if (a === 'overview') return { ok: true, guruhlar: G.map(([g]) => xul(g)) };
       if (a === 'report') return Object.assign({ ok: true }, rep(d.group));
       if (a === 'saveJadval') { jadval = d.rows; return { ok: true, jadval }; }
-      if (a === 'addStudent') { names.push(d.name); return { ok: true, r: names.length + 2, n: names.length }; }
+      if (a === 'addStudent') { const L = roster(d.group); if (L.some(n => n.toLowerCase() === String(d.name).toLowerCase())) throw new Error("Bu o'quvchi ro'yxatda bor: " + d.name); L.push(d.name); return { ok: true, r: L.length + 2, n: L.length }; }
+      if (a === 'removeStudent' || a === 'moveStudent') {
+        const L = roster(d.group), i = L.findIndex(n => n.toLowerCase() === String(d.name).toLowerCase());
+        if (i < 0) throw new Error("O'quvchi topilmadi: " + d.name + ' (' + d.group + ')');
+        let tg = null;
+        if (a === 'moveStudent') { const T = roster(d.target); if (T.some(n => n.toLowerCase() === String(d.name).toLowerCase())) tg = { mavjud: true }; else { T.push(d.name); tg = { r: T.length + 2, n: T.length }; } }
+        L.splice(i, 1);
+        Object.keys(store).forEach(k => { if (k.startsWith(d.group + '|')) store[k].splice(i, 1); });
+        const m = meta[d.group] || {}, nm = {}; Object.keys(m).forEach(k => { const r = +k; if (r !== i + 3) nm[r > i + 3 ? r - 1 : r] = m[k]; }); meta[d.group] = nm;
+        return { ok: true, r: i + 3, n: i + 1, name: d.name, target: tg };
+      }
       if (a === 'getMeta') return { ok: true, items: Object.entries(meta[d.group] || {}).map(([r, v]) => Object.assign({ r: +r }, v)) };
       if (a === 'saveMeta') { (meta[d.group] = meta[d.group] || {})[d.r] = { rol: d.rol, izoh: d.izoh }; return { ok: true }; }
       return { ok: true };
