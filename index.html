@@ -304,6 +304,8 @@ th.l{z-index:3}
 .bpaper th,.bpaper td{border:1px solid #222;padding:5px 8px;text-align:left}
 .bpaper th{background:#f1f1f1;text-align:center;color:#111;font-size:14px;font-weight:700;text-transform:none;letter-spacing:0}
 .bpaper td.c{text-align:center;width:42px}
+.bpaper td.cc{text-align:center;white-space:nowrap}
+.bpaper .p3note{background:#fff3e0;color:#b45309;border-radius:8px;padding:8px 12px;font:600 13px system-ui,sans-serif;margin:0 0 18px}
 .bpaper .binfo{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;margin:0 0 14px;font-size:14px}
 .bpaper .binfo b{font-weight:700}
 .bpaper .bsign{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-top:40px;flex-wrap:wrap}
@@ -316,6 +318,7 @@ th.l{z-index:3}
   body>*:not(#bild){display:none!important}
   #bild{position:static;background:none;padding:0;overflow:visible}
   #bild .bbar{display:none}
+  .bpaper .noexp{display:none!important}
   .bpaper{box-shadow:none;border-radius:0;padding:0;max-width:none}
   .bpaper [contenteditable]:hover{background:none}
 }
@@ -388,6 +391,7 @@ th.l{z-index:3}
       <button class="btn btn-ghost hide" id="tgSend" style="background:#e3f2fd;color:#1e88e5">Telegramga</button>
       <button class="btn btn-ghost" id="bildBtn" style="background:#fff1d6;color:#b45309">📄 Bildirgi</button>
       <button class="btn btn-ghost" id="bildDl" style="background:#e3ecfa;color:#2b579a">⬇ Bildirgini yuklab olish</button>
+      <button class="btn btn-ghost hide" id="p3Btn" style="background:#e8f5e9;color:#2e7d32">⬇ 3 para (I·II·III)</button>
       <button class="btn btn-ghost" id="clearAll" style="background:var(--bg);color:var(--muted)">Tozalash</button>
       <button class="btn btn-ghost" id="addStu" style="background:var(--ok-soft);color:var(--ok)">➕ O'quvchi</button>
       <select class="filt" id="filt" title="Saralash">
@@ -482,8 +486,10 @@ th.l{z-index:3}
   <div class="bbar">
     <button class="btn btn-pri" id="bildDoc" style="background:#2b579a">📝 Word (.docx) yuklab olish</button>
     <button class="btn btn-pri" id="bildPrint">🖨 Chop etish / PDF</button>
+    <button class="btn btn-pri hide" id="p3Png" style="background:#2e7d32">🖼 Rasm (PNG) yuklab olish</button>
+    <button class="btn btn-pri hide" id="p3Tg" style="background:#1e88e5">✈ Telegramga</button>
     <button class="btn btn-ghost" id="bildClose" style="background:#fff">Yopish</button>
-    <label><input type="checkbox" id="bildAuto"> Saqlaganda avtomatik ochilsin</label>
+    <label id="bildAutoL"><input type="checkbox" id="bildAuto"> Saqlaganda avtomatik ochilsin</label>
   </div>
   <div class="bpaper" id="bildPaper"></div>
 </div>
@@ -691,11 +697,24 @@ function lessonsHtml(list, live) {
       <div class="s">${esc(l.vaqt || '')}${l.xona ? ' · ' + esc(l.xona) : ''}${l.hafta === 'toq' || l.hafta === 'juft' ? ' · faqat ' + l.hafta + ' hafta' : /^d:/.test(l.hafta) ? ' · qo\'shimcha dars' : ''}${l.oquvchiSoni ? ' · ' + l.oquvchiSoni + " o'quvchi" : ''}</div></div>
       <div class="st">${st}</div></button>`;
   });
+  // 05-25: uchala para davomatini birga yuklab olish
+  const p3l = list.filter(l => /^05-25/.test(l.guruh));
+  if (p3l.length) {
+    const nb = p3l.filter(l => l.belgilangan || pend.some(x => x.group === l.guruh && x.date === curDate)).length;
+    h += `<button class="lesson" data-p3 style="border:2px dashed var(--ok)">
+      <div class="para" style="background:var(--ok-soft);color:var(--ok)">3<small>para</small></div>
+      <div><div class="t">05-25 — 3 para birga <span style="font-weight:600;color:var(--muted);font-size:13px">I · II · III</span></div>
+      <div class="s">Davomat qilingan paralar birlashtiriladi · Word · rasm · Telegram</div></div>
+      <div class="st">${live === null ? '' : `<span class="pill ${nb ? 'p-ok' : 'p-wait'}">${nb}/${p3l.length} para</span>`}</div></button>`;
+  }
   h += `<h2 class="sec">Boshqa guruh</h2><div class="chips">` +
     INIT.guruhlar.map(g => `<button class="chip" data-g="${esc(g.id)}">${esc(g.id)}</button>`).join('') + '</div>';
   return h;
 }
-function bindLessons(box) { box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => openAtt(b.dataset.g, curDate)); }
+function bindLessons(box) {
+  box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => openAtt(b.dataset.g, curDate));
+  box.querySelectorAll('[data-p3]').forEach(b => b.onclick = () => openP3(curDate));
+}
 
 /* ---------- GURUHLAR ---------- */
 async function renderGroups() {
@@ -726,6 +745,7 @@ async function openAtt(g, date) {
   $('#counts').innerHTML = ''; $('#search').value = '';
   $('#tgSend').classList.toggle('hide', !KUNLIK[g]);
   $('#fotoBtn').classList.toggle('hide', !KUNLIK[g]);
+  $('#p3Btn').classList.toggle('hide', !KUNLIK[g]);
   att = null;
   const key = 'les|' + g + '|' + date;
   const show = (list, fromCache) => {
@@ -1327,6 +1347,7 @@ function bildData(g, date, list) {
 }
 function showBild(D) { renderBild(D); openBild(); }
 function renderBild(D) {
+  bildMode(false);
   const c = bildCfg(), d = parseD(D.sana), rh = !!KUNLIK[D.guruh];
   const gid = D.guruh.split(' ')[0];
   const yoq = D.list.filter(o => o.s === '-'), sab = D.list.filter(o => o.s === 's'), kech = D.list.filter(o => o.s === 'k');
@@ -1360,11 +1381,20 @@ function renderBild(D) {
       <div contenteditable>${esc(sanaNum)}</div>
     </div>
     <div class="bfoot" contenteditable>Tanishdim: ${rh ? "Direktorning tarbiyaviy ishlar bo'yicha o'rinbosari" : "Guruh rahbari"} <span class="ln" style="display:inline-block;width:150px;border-bottom:1px solid #111;margin:0 8px"></span></div>`;
-  const k = $('#bildPaper [data-k="kimga"]');
-  k.onblur = () => { const v = k.textContent.trim(); const cfg = LS.get('bildCfg', {}); if (v && v !== BILD_DEF.kimga) cfg.kimga = v; else delete cfg.kimga; LS.set('bildCfg', cfg); };
+  bindKimga();
   $('#bildAuto').checked = bildAuto();
   document.title = 'Bildirgi_' + gid + '_' + D.sana;
   loadDocx().catch(() => {});
+}
+function bindKimga() {
+  const k = $('#bildPaper [data-k="kimga"]'); if (!k) return;
+  k.onblur = () => { const v = k.textContent.trim(); const cfg = LS.get('bildCfg', {}); if (v && v !== BILD_DEF.kimga) cfg.kimga = v; else delete cfg.kimga; LS.set('bildCfg', cfg); };
+}
+// Oyna rejimi: oddiy bildirgi yoki 05-25 «3 para birga»
+function bildMode(p3) {
+  ['#p3Png', '#p3Tg'].forEach(s => $(s).classList.toggle('hide', !p3));
+  $('#bildAutoL').classList.toggle('hide', p3);
+  if (!p3) P3 = null;
 }
 function openBild() {
   $('#bild').classList.remove('hide'); $('#bild').scrollTop = 0; document.body.style.overflow = 'hidden';
@@ -1399,11 +1429,12 @@ async function bildDocx() {
     const NB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
     const noBorders = { top: NB, bottom: NB, left: NB, right: NB, insideHorizontal: NB, insideVertical: NB };
     const cell = (t, o = {}) => new TableCell({ width: o.w ? { size: o.w, type: WidthType.DXA } : undefined, shading: o.head ? { fill: 'EFEFEF', type: ShadingType.CLEAR, color: 'auto' } : undefined,
-      margins: { top: 60, bottom: 60, left: 100, right: 100 },
-      children: [new Paragraph({ alignment: o.c ? AlignmentType.CENTER : AlignmentType.LEFT, children: [T(t, { bold: !!o.head, size: 26 })] })] });
+      margins: { top: o.sz ? 30 : 60, bottom: o.sz ? 30 : 60, left: 100, right: 100 },
+      children: [new Paragraph({ alignment: o.c ? AlignmentType.CENTER : AlignmentType.LEFT, children: [T(t, { bold: !!(o.head || o.b), size: o.sz || 26 })] })] });
     const kids = [];
     const paper = $('#bildPaper');
     for (const el of paper.children) {
+      if (el.classList.contains('noexp')) continue;
       if (el.classList.contains('bto')) {
         [...el.children].forEach(c => kids.push(P(T(txt(c)), { indent: { left: 5200 }, spacing: { after: 0, line: 300 } })));
       } else if (el.tagName === 'H1') {
@@ -1423,8 +1454,9 @@ async function bildDocx() {
         const centered = el.style.textAlign === 'center';
         kids.push(P(T(t, { italics: centered, color: el.style.color ? 'AA0000' : undefined }), centered ? { alignment: AlignmentType.CENTER } : { alignment: AlignmentType.JUSTIFIED, indent: { firstLine: 709 } }));
       } else if (el.tagName === 'TABLE') {
-        const W = [700, 4655, 1600, 2400];
-        const rows = [...el.rows].map((r, ri) => new TableRow({ tableHeader: ri === 0, children: [...r.cells].map((c, ci) => cell(txt(c), { head: ri === 0, c: ci !== 1 && ci !== 3 || ri === 0, w: W[ci] })) }));
+        const nc = el.rows[0].cells.length, bild4 = nc === 4 && !P3;
+        const W = bild4 ? [700, 4655, 1600, 2400] : [700, 4255].concat(Array(Math.max(nc - 2, 0)).fill(Math.floor(4400 / Math.max(nc - 2, 1))));
+        const rows = [...el.rows].map((r, ri) => new TableRow({ tableHeader: ri === 0, cantSplit: true, children: [...r.cells].map((c, ci) => cell(txt(c), { head: ri === 0, c: ri === 0 || (ci !== 1 && !(bild4 && ci === 3)), w: W[ci], b: !!c.querySelector('b'), sz: bild4 ? 0 : 24 })) }));
         kids.push(new Table({ width: { size: 9355, type: WidthType.DXA }, columnWidths: W, rows }));
         kids.push(P(T(''), { spacing: { after: 120 } }));
       } else if (el.classList.contains('bsign')) {
@@ -1442,7 +1474,7 @@ async function bildDocx() {
       styles: { default: { document: { run: { font: F, size: SZ } } } },
       sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1701, right: 850 } } }, children: kids }] });
     const blob = await Packer.toBlob(doc);
-    const name = (document.title.startsWith('Bildirgi') ? document.title : 'Bildirgi') + '.docx';
+    const name = (/^(Bildirgi|Davomat_)/.test(document.title) ? document.title : 'Bildirgi') + '.docx';
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast('Word fayl yuklab olindi ✓ — ' + name, 3000);
@@ -1460,6 +1492,198 @@ $('#bildDl').onclick = async () => {
 $('#bildAuto').onchange = e => { LS.set('bildAuto', e.target.checked); toast(e.target.checked ? "Bildirgi saqlaganda avtomatik ochiladi" : "Avtomatik bildirgi o'chirildi"); };
 $('#bildBtn').onclick = () => { if (att) showBild(bildData(att.guruh, att.sana, att.oquvchilar)); };
 window.addEventListener('afterprint', () => { if (!$('#bild').classList.contains('hide')) document.title = 'Davomat — Mashrapov Q.'; });
+
+/* ---------- 05-25: 3 PARA BIRGA (I · II · III) ---------- */
+// Qaysi paralarda davomat qilingan bo'lsa (I, II, III — biri, ikkitasi yoki uchalasi), hammasi bitta hujjat / rasmga yig'iladi
+let P3 = null, p3Busy = false;
+const P3_PARA = ['I', 'II', 'III'];
+const P3_ST = { '+': 'keldi', '-': 'kelmadi', 's': 'sababli', 'k': 'kechikdi', '': '—' };
+const p3nm = o => String(o.name || '').split(' ').slice(0, 2).join(' ');
+function p3Stat(list) {
+  const here = o => o.s === '+' || o.s === 'k';
+  return { kel: list.filter(here), yoq: list.filter(o => o.s === '-'), sab: list.filter(o => o.s === 's'), kech: list.filter(o => o.s === 'k'),
+    bel: list.filter(o => !o.s), forma: list.filter(o => o.f && here(o)), qurol: list.filter(o => o.q && here(o)) };
+}
+// Saqlanmagan navbat (pending), qoralama va forma/qurol belgilarini serverdagi ro'yxat ustiga qo'yamiz (openAtt dagidek)
+function p3Merge(g, date, base) {
+  const list = base.map(o => Object.assign({}, o, { s: o.s || '', f: false, q: false }));
+  const pend = LS.get('pending', []).find(x => x.group === g && x.date === date);
+  if (pend) pend.marks.forEach(m => { const o = list.find(x => x.r === m.r); if (o) Object.assign(o, { s: m.s || '', b: m.b, d: m.d }); });
+  const draft = LS.get('draft|' + g + '|' + date, null);
+  if (draft) list.forEach(o => { const m = draft[o.r]; if (m) Object.assign(o, { s: m.s || '', b: m.b || '', d: !!m.d }); });
+  const qf = LS.get('qf|' + g + '|' + date, {}); list.forEach(o => { const v = qf[o.r] || {}; o.q = !!v.q; o.f = !!v.f; });
+  return list;
+}
+async function p3Data(date) {
+  return Promise.all(P3_PARA.map(async p => {
+    const g = '05-25 ' + p;
+    // Hozir ochiq turgan para — ekrandagi (saqlanmagan bo'lsa ham) belgilar bilan
+    if (att && att.guruh === g && att.sana === date) {
+      const srv = LS.get('les|' + g + '|' + date, null) || [];
+      const marked = att.touched || srv.some(o => o.s) || !!LS.get('draft|' + g + '|' + date, null) || LS.get('pending', []).some(x => x.group === g && x.date === date);
+      return { p, g, list: att.oquvchilar.map(o => Object.assign({}, o)), marked, open: true };
+    }
+    let base = null;
+    try { const j = await api('lesson', { group: g, date }, 1); base = j.oquvchilar; LS.set('les|' + g + '|' + date, base); }
+    catch (e) { base = LS.get('les|' + g + '|' + date, null); }
+    if (!base) { const stu = LS.get('stu|' + g, null); base = stu ? stu.map(o => Object.assign({}, o, { s: '', b: '', d: false })) : []; }
+    const list = p3Merge(g, date, base);
+    return { p, g, list, marked: list.some(o => o.s) };
+  }));
+}
+function p3Rows(paras) {
+  const rows = [], idx = {};
+  paras.forEach(P => P.list.forEach(o => {
+    const k = norm(o.name); if (!k) return;
+    if (!(k in idx)) { idx[k] = rows.length; rows.push({ n: o.n, name: o.name, by: {} }); }
+    rows[idx[k]].by[P.p] = o;
+  }));
+  return rows.map((r, i) => Object.assign(r, { i })).sort((a, b) => ((+a.n || 999) - (+b.n || 999)) || a.i - b.i);
+}
+async function openP3(date) {
+  if (p3Busy) return; p3Busy = true;
+  toast('05-25: I, II, III para davomati yig\'ilmoqda…', 6000);
+  try {
+    const paras = await p3Data(date);
+    if (!paras.some(P => P.marked)) { toast('05-25: ' + human(date) + ' kuni hali birorta para davomati qilinmagan', 4000); return; }
+    renderP3({ sana: date, paras, rows: p3Rows(paras) }); openBild();
+    toast('Tayyor ✓ — ' + paras.filter(P => P.marked).map(P => P.p).join(', ') + ' para birlashtirildi', 2500);
+  } catch (e) { toast("Yig'ib bo'lmadi: " + e.message, 4000); }
+  finally { p3Busy = false; }
+}
+function renderP3(D) {
+  bildMode(true); P3 = D;
+  const c = bildCfg(), d = parseD(D.sana);
+  const M = D.paras.filter(P => P.marked), U = D.paras.filter(P => !P.marked);
+  const les = INIT && INIT.jadval ? lessonsFor(D.sana) : [];
+  const vaqt = p => (les.find(x => x.guruh === '05-25 ' + p) || {}).vaqt || '';
+  const sanaTxt = d.getFullYear() + '-yil ' + d.getDate() + '-' + OY[d.getMonth()];
+  const sanaNum = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
+  const isAb = o => o && (o.s === '-' || o.s === 's');
+  const absAny = D.rows.filter(r => M.some(P => isAb(r.by[P.p])));
+  const allHere = D.rows.filter(r => M.every(P => { const o = r.by[P.p]; return o && (o.s === '+' || o.s === 'k'); }));
+  const paraLine = P => {
+    const S = p3Stat(P.list), ab = S.yoq.concat(S.sab).sort((a, b) => (+a.n || 0) - (+b.n || 0));
+    return `<p contenteditable><b>${P.p} para</b>${vaqt(P.p) ? ' (' + esc(vaqt(P.p)) + ')' : ''}: ${S.kel.length} nafar keldi, ${ab.length} nafar kelmadi` +
+      (ab.length ? ` (sababsiz — ${S.yoq.length}, sababli — ${S.sab.length}). Kelmaganlar: ${esc(ab.map(p3nm).join(', '))}` : '') +
+      (S.kech.length ? `. Kechikkanlar: ${esc(S.kech.map(p3nm).join(', '))}` : '') +
+      (S.forma.length ? `. Forma yo'q: ${esc(S.forma.map(p3nm).join(', '))}` : '') +
+      (S.qurol.length ? `. O'quv quroli yo'q: ${esc(S.qurol.map(p3nm).join(', '))}` : '') + '.</p>';
+  };
+  const td = o => { const s = o ? o.s || '' : ''; return `<td class="cc">${isAb(o) ? '<b>' + P3_ST[s] + '</b>' : P3_ST[s] || '—'}</td>`; };
+  const bel = M.reduce((n, P) => n + p3Stat(P.list).bel.length, 0);
+  $('#bildPaper').innerHTML = `
+    ${U.length ? `<div class="p3note noexp">⚠ ${U.map(P => P.p).join(', ')} para — hali davomat qilinmagan (yoki saqlanmagan), shuning uchun qo'shilmadi. Belgilab saqlagach, qayta oching.</div>` : ''}
+    <div class="bto"><div contenteditable data-k="kimga">${esc(c.kimga)}</div><div contenteditable>05-25 guruh rahbari ${esc(c.oqituvchi)} tomonidan</div></div>
+    <h1>DAVOMAT</h1>
+    <div class="bsub">05-25 guruhi — kunlik davomat (${M.map(P => P.p).join(', ')} para)</div>
+    <div class="binfo">
+      <b>Sana:</b><span contenteditable>${esc(sanaNum)} (${esc(KUN[d.getDay()].toLowerCase())})</span>
+      <b>Guruh:</b><span contenteditable>05-25</span>
+      <b>Paralar:</b><span contenteditable>${esc(M.map(P => P.p + ' para' + (vaqt(P.p) ? ' (' + vaqt(P.p) + ')' : '')).join(', '))}</span>
+      <b>Guruh rahbari:</b><span contenteditable>${esc(c.oqituvchi)}</span>
+    </div>
+    <p contenteditable>Sizga shuni ma'lum qilamanki, ${esc(sanaTxt)} kuni 05-25 guruhining jami ${D.rows.length} nafar o'quvchisi bo'yicha ${M.length === 1 ? M[0].p + ' para' : M.length + ' ta para (' + M.map(P => P.p).join(', ') + ')'} davomati natijalari quyidagicha:</p>
+    ${M.map(paraLine).join('')}
+    ${M.length > 1 ? `<p contenteditable>Barcha paralarda qatnashganlar — ${allHere.length} nafar; kamida bitta parada qatnashmaganlar — ${absAny.length} nafar.</p>` : ''}
+    <table><thead><tr><th>№</th><th>O'quvchining F.I.Sh.</th>${M.map(P => `<th>${P.p} para</th>`).join('')}</tr></thead>
+    <tbody>${D.rows.map((r, i) => `<tr><td class="c">${i + 1}</td><td contenteditable>${esc(r.name)}</td>${M.map(P => td(r.by[P.p])).join('')}</tr>`).join('')}</tbody></table>
+    ${bel ? `<p contenteditable>Belgilanmagan holatlar: ${bel} ta.</p>` : ''}
+    <div class="bsign">
+      <div contenteditable>Guruh rahbari:<span class="ln"></span>${esc(c.oqituvchi)}</div>
+      <div contenteditable>${esc(sanaNum)}</div>
+    </div>
+    <div class="bfoot" contenteditable>Tanishdim: Direktorning tarbiyaviy ishlar bo'yicha o'rinbosari <span class="ln" style="display:inline-block;width:150px;border-bottom:1px solid #111;margin:0 8px"></span></div>`;
+  bindKimga();
+  document.title = 'Davomat_05-25_' + D.sana + '_' + M.map(P => P.p).join('-') + '-para';
+  loadDocx().catch(() => {});
+}
+// Telegram / PNG uchun rasm: har bir para alohida ustun
+function p3Rasm(D) {
+  const M = D.paras.filter(P => P.marked), rows = D.rows;
+  const RH = 54, T0 = 480, W = 1080, H = T0 + rows.length * RH + 70;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+  const F = (w, z) => x.font = (w ? 'bold ' : '') + z + 'px system-ui,Segoe UI,Arial';
+  x.fillStyle = '#f4f6fb'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#3d5afe'; x.fillRect(0, 0, W, 170);
+  const d = parseD(D.sana);
+  x.fillStyle = '#fff'; F(1, 52); x.fillText('05-25 guruh — kunlik davomat', 60, 85);
+  F(0, 30); x.fillText(KUN[d.getDay()] + ', ' + d.getDate() + '-' + OY[d.getMonth()] + ' ' + d.getFullYear() + ' · ' + M.map(P => P.p).join(', ') + ' para', 60, 140);
+  const gap = 20, bw = (W - 80 - gap * (M.length - 1)) / M.length;
+  M.forEach((P, i) => {
+    const S = p3Stat(P.list), bx = 40 + i * (bw + gap), ab = S.yoq.length + S.sab.length;
+    x.fillStyle = '#fff'; x.beginPath(); x.roundRect(bx, 200, bw, 190, 24); x.fill();
+    x.textAlign = 'center';
+    x.fillStyle = '#151827'; F(1, 30); x.fillText(P.p + ' para', bx + bw / 2, 248);
+    x.fillStyle = '#2e7d32'; F(1, 64); x.fillText(S.kel.length + '/' + P.list.length, bx + bw / 2, 322);
+    x.fillStyle = ab ? '#e53935' : '#5b6275'; F(0, 26); x.fillText(ab ? ab + ' nafar kelmadi' : 'Hammasi keldi', bx + bw / 2, 365);
+    x.textAlign = 'left';
+  });
+  const CW = M.length === 1 ? 220 : 180, X0 = W - 40 - CW * M.length, cx = i => X0 + CW * i + CW / 2;
+  x.fillStyle = '#151827'; F(1, 26);
+  x.fillText('№', 50, T0 - 40); x.fillText("O'quvchi", 110, T0 - 40);
+  x.textAlign = 'center'; M.forEach((P, i) => x.fillText(P.p + ' para', cx(i), T0 - 40)); x.textAlign = 'left';
+  const ST = { '+': ['Keldi', '#2e7d32', '#e8f5e9'], 'k': ['Kechikdi', '#e53935', '#ffebee'], '-': ['Kelmadi', '#e53935', '#ffebee'], 's': ['Sababli', '#1e88e5', '#e3f2fd'], '': ['—', '#8a90a2', '#eef0f5'] };
+  rows.forEach((r, i) => {
+    const y = T0 + i * RH, cy = y + RH / 2 - 10;
+    x.fillStyle = i % 2 ? '#f4f6fb' : '#fff'; x.fillRect(30, y - 10, W - 60, RH);
+    const bad = M.some(P => { const o = r.by[P.p]; return o && (o.s === '-' || o.s === 's' || o.s === 'k'); });
+    x.fillStyle = '#5b6275'; F(0, 26); x.fillText(String(i + 1), 50, cy + 9);
+    x.fillStyle = bad ? '#e53935' : '#151827'; F(bad ? 1 : 0, 28);
+    let nm = p3nm(r); while (nm.length > 4 && x.measureText(nm).width > X0 - 125) nm = nm.slice(0, -1);
+    x.fillText(nm, 110, cy + 10);
+    M.forEach((P, k) => {
+      const o = r.by[P.p], st = ST[o ? o.s || '' : ''] || ST[''];
+      x.fillStyle = st[2]; x.beginPath(); x.roundRect(cx(k) - 70, cy - 19, 140, 38, 19); x.fill();
+      x.fillStyle = st[1]; F(1, 22); x.textAlign = 'center'; x.fillText(st[0], cx(k), cy + 8); x.textAlign = 'left';
+      if (o && (o.f || o.q) && (o.s === '+' || o.s === 'k')) { x.fillStyle = '#ef6c00'; F(1, 17); x.fillText((o.f ? 'F' : '') + (o.q ? 'Q' : ''), cx(k) + 74, cy + 7); }
+    });
+  });
+  x.fillStyle = '#8a90a2'; F(0, 22); x.fillText("F — forma yo'q · Q — o'quv quroli yo'q · Davomat — Mashrapov Q.", 50, H - 25);
+  return cv;
+}
+function p3Cap(D) {
+  const M = D.paras.filter(P => P.marked);
+  let t = '05-25 · ' + human(D.sana) + ' · ' + M.map(P => P.p).join(', ') + ' para\nJami: ' + D.rows.length;
+  M.forEach(P => {
+    const S = p3Stat(P.list);
+    t += '\n\n' + P.p + ' para — Keldi: ' + S.kel.length + ' | Kelmadi: ' + (S.yoq.length + S.sab.length) +
+      (S.yoq.length ? '\nKelmadi: ' + S.yoq.map(p3nm).join(', ') : '') + (S.sab.length ? '\nSababli: ' + S.sab.map(p3nm).join(', ') : '') +
+      (S.kech.length ? '\nKechikdi: ' + S.kech.map(p3nm).join(', ') : '') + (S.forma.length ? "\nForma yo'q: " + S.forma.map(p3nm).join(', ') : '') +
+      (S.qurol.length ? "\nO'quv quroli yo'q: " + S.qurol.map(p3nm).join(', ') : '');
+  });
+  return t;
+}
+const p3File = D => '05-25_' + D.sana + '_' + D.paras.filter(P => P.marked).map(P => P.p).join('-') + '-para.png';
+function dlBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$('#p3Btn').onclick = () => { if (att) openP3(att.sana); };
+$('#p3Png').onclick = async () => {
+  if (!P3) return;
+  const blob = await new Promise(r => p3Rasm(P3).toBlob(r, 'image/png'));
+  dlBlob(blob, p3File(P3)); toast('Rasm yuklab olindi ✓ — ' + p3File(P3), 3000);
+};
+$('#p3Tg').onclick = async () => {
+  if (!P3) return;
+  const c = tgCfg();
+  if (!c.token || !c.chat) { toast("Telegram sozlanmagan — yuqoridagi ✈ tugmasini bosing", 3500); return; }
+  const btn = $('#p3Tg'); btn.disabled = true;
+  try {
+    const blob = await new Promise(r => p3Rasm(P3).toBlob(r, 'image/png')), cap = p3Cap(P3);
+    const chats = String(c.chat).split(/[,;\s]+/).filter(Boolean), xato = [];
+    toast('Telegramga yuborilmoqda…', 2000);
+    for (const chat of chats) {
+      const fd = new FormData(); fd.append('chat_id', chat); fd.append('caption', cap.slice(0, 1000)); fd.append('photo', blob, p3File(P3));
+      const j = await (await fetch('https://api.telegram.org/bot' + c.token + '/sendPhoto', { method: 'POST', body: fd })).json();
+      if (!j.ok) xato.push(chat + ': ' + (j.description || 'xato'));
+    }
+    toast(!xato.length ? (chats.length > 1 ? chats.length + ' ta guruhga yuborildi ✓' : 'Telegram guruhiga yuborildi ✓') : 'Telegram xatosi: ' + xato.join('; '), 4500);
+  } catch (e) { toast("Telegramga yuborib bo'lmadi: " + e.message, 3500); }
+  finally { btn.disabled = false; }
+};
 
 /* ---------- OFFLINE NAVBAT ---------- */
 function addPending(job) { const p = LS.get('pending', []).filter(x => !(x.group === job.group && x.date === job.date)); p.push(job); LS.set('pending', p); pendBadge(); }
