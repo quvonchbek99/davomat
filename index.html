@@ -664,16 +664,26 @@ async function renderToday() {
   const box = $('#v-today');
   const local = lessonsFor(curDate);
   box.innerHTML = lessonsHtml(local, null);
-  prefetchLessons(curDate);
+  const pf = prefetchLessons(curDate);
   bindLessons(box);
   try {
-    const j = await api('day', { date: curDate });
+    const date = curDate, j = await api('day', { date });
     if (j.sana !== curDate || curView !== 'today') return;
     const loc = lessonsFor(curDate), key = l => l.guruh + '|' + l.juftlik;
     const srv = Object.fromEntries((j.darslar || []).map(l => [key(l), l]));
     const srvG = {}; (j.darslar || []).forEach(l => { if (!srvG[l.guruh]) srvG[l.guruh] = l; });   // juftlik farq qilsa — guruh bo'yicha
-    box.innerHTML = lessonsHtml(loc.map(l => { const s = srv[key(l)] || srvG[l.guruh]; return Object.assign({}, l, s ? { belgilangan: !!s.belgilangan, oquvchiSoni: s.oquvchiSoni } : { belgilangan: false }); }), true);
-    bindLessons(box);
+    // Server ro'yxatida yo'q darslar (masalan, jadvaldagi «d:» kunlari) — holatni shu kunning o'quvchilar ro'yxatidan aniqlaymiz
+    const draw = () => {
+      box.innerHTML = lessonsHtml(loc.map(l => {
+        const s = srv[key(l)] || srvG[l.guruh];
+        if (s) return Object.assign({}, l, { belgilangan: !!s.belgilangan, oquvchiSoni: s.oquvchiSoni });
+        const c = LS.get('les|' + l.guruh + '|' + date, null);
+        return Object.assign({}, l, { belgilangan: !!(c && c.some(o => o.s)), oquvchiSoni: c ? c.length : undefined });
+      }), true);
+      bindLessons(box);
+    };
+    draw();
+    if (loc.some(l => !srv[key(l)] && !srvG[l.guruh])) pf.then(() => { if (curView === 'today' && curDate === date && $('#att').classList.contains('hide')) draw(); });
   } catch (e) { }
 }
 // Umumiy dam olish kunlari: guruh '*' , hafta 'x:YYYY-MM-DD' yoki 'x:YYYY-MM-DD..YYYY-MM-DD'
@@ -2602,7 +2612,7 @@ function oyHtml() {
   for (let i = 0; i < off; i++) h += '<div></div>';
   for (let d = 1; d <= days; d++) {
     const s = ymd(new Date(Y, M, d)), L = lessonsFor(s), sun = new Date(Y, M, d).getDay() === 0;
-    const ext = INIT.jadval.some(j => j.hafta === 'd:' + s || j.hafta === 'x:' + s);
+    const ext = INIT.jadval.some(j => (j.hafta === 'd:' + s && !kasbDars(j.guruh, s, j.juftlik)) || j.hafta === 'x:' + s);
     if (damKuni(s)) { h += `<div class="oyd dam"><span>${d}</span><em>dam</em></div>`; continue; }
     h += `<button class="oyd ${s === todayStr() ? 'bugun' : ''} ${s === oySel ? 'sel' : ''} ${sun ? 'sun' : ''}" data-oy="${s}"><span>${d}${ext ? '<i></i>' : ''}</span>${L.slice(0, 3).map(l => `<em>${esc(l.guruh.split(' ')[0])}</em>`).join('')}${L.length > 3 ? `<em>+${L.length - 3}</em>` : ''}</button>`;
   }
@@ -2612,7 +2622,7 @@ function oyHtml() {
     const bekor = INIT.jadval.filter(j => j.hafta === 'x:' + oySel);
     const jopt = ['I', 'II', 'III', 'IV', 'V'].map(r => `<option>${r}</option>`).join('');
     h += `<div class="oypanel"><b>${esc(human(oySel))}</b>` +
-      (L.length ? L.map(l => `<div class="oyrow"><span><b>${esc(l.juftlik || '—')}</b> · ${esc(l.guruh)}${/^d:/.test(l.hafta) ? ' <small>(qo\'shimcha)</small>' : ''}</span><button class="btn btn-ghost" data-del="${esc(l.guruh)}|${esc(l.juftlik)}|${esc(l.hafta)}">✕</button></div>`).join('') : '<div class="small">Bu kuni dars yo\'q</div>') +
+      (L.length ? L.map(l => `<div class="oyrow"><span><b>${esc(l.juftlik || '—')}</b> · ${esc(l.guruh)}${(() => { const kd = kasbDars(l.guruh, oySel, l.juftlik); return kd ? ' <small>(' + kd.i + '/' + kd.n + '-dars' + (kd.tur ? ', ' + esc(kd.tur) : '') + (kd.oxirgi ? ', oxirgi' : '') + ')</small>' : /^d:/.test(l.hafta) ? ' <small>(qo\'shimcha)</small>' : ''; })()}</span><button class="btn btn-ghost" data-del="${esc(l.guruh)}|${esc(l.juftlik)}|${esc(l.hafta)}">✕</button></div>`).join('') : '<div class="small">Bu kuni dars yo\'q</div>') +
       bekor.map(b => `<div class="oyrow" style="opacity:.55"><span><s>${esc(b.juftlik)} · ${esc(b.guruh)}</s> <small>(bekor)</small></span><button class="btn btn-ghost" data-tik="${esc(b.guruh)}|${esc(b.juftlik)}">Qaytarish</button></div>`).join('') +
       `<div class="oyadd"><select id="oyG">${INIT.guruhlar.map(g => `<option>${esc(g.id)}</option>`).join('')}</select><select id="oyJ">${jopt}</select><button class="btn btn-pri" id="oyAdd">+ Qo'shish</button></div></div>`;
   }
