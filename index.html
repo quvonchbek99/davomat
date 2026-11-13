@@ -80,6 +80,12 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 .lesson .s{color:var(--muted);font-size:13px;margin-top:2px}
 .st{margin-left:auto;flex-shrink:0}
 .pill{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.kd{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.kt{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--bg);color:var(--muted)}
+.kt.on{background:var(--late-soft);color:var(--late)}
+.kt.last{background:var(--no-soft);color:var(--no)}
+.kx{background:var(--card);border-radius:var(--r);padding:12px 14px;box-shadow:var(--shadow);margin-bottom:10px;display:grid;gap:6px;font-size:13px;line-height:1.45}
+.kxr.warn b{color:var(--late)} .kxr.done b{color:var(--ok)}
 .p-ok{background:var(--ok-soft);color:var(--ok)}
 .p-wait{background:var(--late-soft);color:var(--late)}
 .empty{background:var(--card);border-radius:var(--r);padding:28px 20px;text-align:center;color:var(--muted);box-shadow:var(--shadow)}
@@ -494,6 +500,7 @@ th.l{z-index:3}
   <div class="bpaper" id="bildPaper"></div>
 </div>
 
+<script src="kasb-jadval.js"></script>
 <script>
 /* =============================================================
    Sozlama: Apps Script Web App URL shu yerga yozilsa, kirishda so'ralmaydi
@@ -664,7 +671,8 @@ async function renderToday() {
     if (j.sana !== curDate || curView !== 'today') return;
     const loc = lessonsFor(curDate), key = l => l.guruh + '|' + l.juftlik;
     const srv = Object.fromEntries((j.darslar || []).map(l => [key(l), l]));
-    box.innerHTML = lessonsHtml(loc.map(l => srv[key(l)] || Object.assign({ belgilangan: false }, l)), true);
+    const srvG = {}; (j.darslar || []).forEach(l => { if (!srvG[l.guruh]) srvG[l.guruh] = l; });   // juftlik farq qilsa — guruh bo'yicha
+    box.innerHTML = lessonsHtml(loc.map(l => { const s = srv[key(l)] || srvG[l.guruh]; return Object.assign({}, l, s ? { belgilangan: !!s.belgilangan, oquvchiSoni: s.oquvchiSoni } : { belgilangan: false }); }), true);
     bindLessons(box);
   } catch (e) { }
 }
@@ -688,13 +696,14 @@ function lessonsHtml(list, live) {
   let h = `<h2 class="sec">${esc(human(curDate))} — darslar</h2>`;
   if (!list.length) h += `<div class="empty"><b>Bu kuni dars yo'q</b>${damKuni(curDate) ? 'Dam olish / ta\'til kuni' : parseD(curDate).getDay() === 0 ? 'Yakshanba — dam olish kuni' : 'Jadval bo\'yicha bu kunga dars belgilanmagan'}</div>`;
   list.forEach(l => {
+    const kd = kasbDars(l.guruh, curDate, l.juftlik);
     const p = pend.some(x => x.group === l.guruh && x.date === curDate);
     const st = p ? '<span class="pill" style="background:var(--no-soft);color:var(--no)">Yuborilmagan</span>'
       : live === null ? '' : l.belgilangan ? '<span class="pill p-ok">Belgilandi ✓</span>' : '<span class="pill p-wait">Kutilmoqda</span>';
     h += `<button class="lesson" data-g="${esc(l.guruh)}">
       <div class="para">${esc(l.juftlik || '—')}<small>juftlik</small></div>
       <div><div class="t">${esc(l.guruh)} <span style="font-weight:600;color:var(--muted);font-size:13px">${esc(l.nomi)}</span></div>
-      <div class="s">${esc(l.vaqt || '')}${l.xona ? ' · ' + esc(l.xona) : ''}${l.hafta === 'toq' || l.hafta === 'juft' ? ' · faqat ' + l.hafta + ' hafta' : /^d:/.test(l.hafta) ? ' · qo\'shimcha dars' : ''}${l.oquvchiSoni ? ' · ' + l.oquvchiSoni + " o'quvchi" : ''}</div></div>
+      <div class="s">${esc(l.vaqt || '')}${l.xona ? ' · ' + esc(l.xona) : ''}${kd ? '' : l.hafta === 'toq' || l.hafta === 'juft' ? ' · faqat ' + l.hafta + ' hafta' : /^d:/.test(l.hafta) ? ' · qo\'shimcha dars' : ''}${l.oquvchiSoni ? ' · ' + l.oquvchiSoni + " o'quvchi" : ''}</div>${kdHtml(kd)}</div>
       <div class="st">${st}</div></button>`;
   });
   // 05-25: uchala para davomatini birga yuklab olish
@@ -707,6 +716,7 @@ function lessonsHtml(list, live) {
       <div class="s">Davomat qilingan paralar birlashtiriladi · Word · rasm · Telegram</div></div>
       <div class="st">${live === null ? '' : `<span class="pill ${nb ? 'p-ok' : 'p-wait'}">${nb}/${p3l.length} para</span>`}</div></button>`;
   }
+  h += kasbXulosa(curDate);
   h += `<h2 class="sec">Boshqa guruh</h2><div class="chips">` +
     INIT.guruhlar.map(g => `<button class="chip" data-g="${esc(g.id)}">${esc(g.id)}</button>`).join('') + '</div>';
   return h;
@@ -716,6 +726,34 @@ function bindLessons(box) {
   box.querySelectorAll('[data-p3]').forEach(b => b.onclick = () => openP3(curDate));
 }
 
+/* ---------- KASB-EMIS: dars raqami, nazorat turi, oxirgi dars, tugagan guruhlar (kasb-jadval.js) ---------- */
+const KG = () => (window.KASB && KASB.guruhlar) || {};
+const sanaQ = s => { const d = parseD(s); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0'); };
+function kasbDars(g, date, juft) {
+  const L = KG()[g]; if (!L) return null;
+  let i = L.findIndex(x => x[0] === date && (!juft || x[1] === juft));
+  if (i < 0) i = L.findIndex(x => x[0] === date);
+  return i < 0 ? null : { i: i + 1, n: L.length, tur: L[i][2], oxirgi: i === L.length - 1 };
+}
+function kdHtml(kd) {
+  if (!kd) return '';
+  return `<div class="kd">${kd.oxirgi ? '<span class="kt last">🏁 Oxirgi dars</span>' : ''}${kd.tur ? `<span class="kt on">${esc(kd.tur)}</span>` : ''}<span class="kt">${kd.i}/${kd.n}-dars${kd.oxirgi ? '' : ' · ' + (kd.n - kd.i) + ' ta qoldi'}</span></div>`;
+}
+function kasbHolat(g, date) {   // kasb-emis bo'yicha guruhning shu sanadagi holati
+  const L = KG()[g]; if (!L || !L.length) return null;
+  const last = L[L.length - 1][0];
+  return { n: L.length, otdi: L.filter(x => x[0] <= date).length, qoldi: L.filter(x => x[0] > date).length, last, tugadi: date > last };
+}
+function kasbXulosa(date) {
+  const H = Object.keys(KG()).map(g => Object.assign({ g }, kasbHolat(g, date))).filter(x => x.n);
+  const tug = H.filter(x => x.tugadi), oz = H.filter(x => !x.tugadi && x.qoldi <= 3);
+  if (!tug.length && !oz.length) return '';
+  return `<h2 class="sec">Kasb-emis · ${esc(KASB.fan || 'Matematika')} darslari</h2><div class="kx">` +
+    (oz.length ? `<div class="kxr warn"><b>⏳ Oxiriga yaqin:</b> ${oz.map(x => esc(x.g) + ' — ' + (x.qoldi ? x.qoldi + ' ta dars qoldi' : 'bugun oxirgi dars') + ' (oxirgisi ' + sanaQ(x.last) + ')').join(' · ')}</div>` : '') +
+    (tug.length ? `<div class="kxr done"><b>✓ Darsi tugagan:</b> ${tug.map(x => esc(x.g) + ' (' + sanaQ(x.last) + ', ' + x.n + ' dars)').join(' · ')}</div>` : '') +
+    `<div class="small">Manba: kasb-emis elektron jurnali, ${esc(sanaQ(KASB.yangilangan))} holatiga</div></div>`;
+}
+
 /* ---------- GURUHLAR ---------- */
 async function renderGroups() {
   const box = $('#v-groups');
@@ -723,9 +761,11 @@ async function renderGroups() {
     const by = Object.fromEntries((ov || []).map(o => [o.guruh, o]));
     box.innerHTML = `<h2 class="sec">Guruhni tanlang — ${esc(human(curDate))}</h2><div class="grid">` + INIT.guruhlar.map(g => {
       const o = by[g.id];
-      const days = INIT.jadval.filter(j => j.guruh === g.id).map(j => KUNQ[j.kun] + (j.hafta !== 'har' ? '(' + j.hafta[0].toUpperCase() + ')' : '')).join(' ');
+      const kh = kasbHolat(g.id, curDate);
+      const days = INIT.jadval.filter(j => j.guruh === g.id && /^(har|toq|juft)$/.test(j.hafta)).map(j => KUNQ[j.kun] + (j.hafta !== 'har' ? '(' + j.hafta[0].toUpperCase() + ')' : '')).join(' ');
       return `<button class="gcard" data-g="${esc(g.id)}"><div class="id">${esc(g.id)}</div><div class="nm">${esc(g.nomi)}</div>
         <div class="small" style="font-weight:700">${esc(days)}</div>
+        ${kh ? `<div class="small" style="margin-top:4px;font-weight:700;color:${kh.tugadi ? 'var(--ok)' : kh.qoldi <= 3 ? 'var(--late)' : 'var(--muted)'}">${kh.tugadi ? '✓ Darslar tugagan · ' + sanaQ(kh.last) + ' (' + kh.n + ' dars)' : 'Kasb-emis: ' + kh.otdi + '/' + kh.n + ' dars · oxirgisi ' + sanaQ(kh.last)}</div>` : ''}
         ${o ? `<div class="bar"><i style="width:${o.davomat ?? 0}%"></i></div><div class="kv"><span>Davomat <b>${o.davomat ?? '—'}%</b></span><span>Baho <b>${o.ortacha ?? '—'}</b></span></div>` : ''}</button>`;
     }).join('') + '</div>';
     box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => openAtt(b.dataset.g, curDate));
@@ -2625,7 +2665,7 @@ function renderSched() {
     let h = `<h2 class="sec">Haftalik dars jadvali · bu hafta <span class="badge ${w === 'toq' ? 'b-toq' : 'b-juft'}">${w === 'toq' ? 'Toq' : 'Juft'}</span></h2><div class="week">`;
     for (let k = 1; k <= 6; k++) {
       const L = INIT.jadval.filter(j => j.kun === k && (j.hafta === 'har' || j.hafta === 'toq' || j.hafta === 'juft')).sort((a, b) => (a.juftlik || 'Z').localeCompare(b.juftlik || 'Z'));
-      h += `<div class="day ${k === td ? 'today' : ''}"><h4>${KUN[k]}</h4>` + (L.length ? L.map(j => `<div class="slot ${j.hafta !== 'har' && j.hafta !== w ? 'dim' : ''}"><b>${esc(j.guruh)}</b> ${j.juftlik ? esc(j.juftlik) + ' j.' : ''}<br><span class="small">${esc(j.vaqt || '')}${j.hafta !== 'har' ? ' · ' + j.hafta : ''}</span></div>`).join('') : '<div class="small">—</div>') + '</div>';
+      h += `<div class="day ${k === td ? 'today' : ''}"><h4>${KUN[k]}</h4>` + (L.length ? L.map(j => { const kh = kasbHolat(j.guruh, todayStr()); return `<div class="slot ${(j.hafta !== 'har' && j.hafta !== w) || (kh && kh.tugadi) ? 'dim' : ''}"><b>${esc(j.guruh)}</b> ${j.juftlik ? esc(j.juftlik) + ' j.' : ''}<br><span class="small">${esc(j.vaqt || '')}${j.hafta !== 'har' ? ' · ' + j.hafta : ''}${kh ? (kh.tugadi ? ' · ✓ tugagan ' + sanaQ(kh.last) : ' · oxirgisi ' + sanaQ(kh.last)) : ''}</span></div>`; }).join('') : '<div class="small">—</div>') + '</div>';
     }
     h += `</div><p class="small" style="margin-top:12px">Xira ko'ringan darslar — boshqa haftaga tegishli (toq/juft).</p><button class="btn btn-ghost" id="editSched">Jadvalni tahrirlash</button>`;
     box.innerHTML = oyHtml() + h.replace('Jadvalni tahrirlash', 'Haftalik jadvalni tahrirlash');

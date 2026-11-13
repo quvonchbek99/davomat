@@ -19,6 +19,8 @@ Sayt: https://quvonchbek99.github.io/davomat/ · Backend: Google Apps Script "Da
 
 - **⬇ 05-25 — 3 para birga (13.11.2026).** «Bugun» oynasida 05-25 paralari ostida «05-25 — 3 para birga» kartasi, 05-25 davomat oynasida esa «⬇ 3 para (I·II·III)» tugmasi. Qaysi paralarda davomat qilingan bo'lsa (I, II, III — bittasi, ikkitasi yoki uchalasi), hammasi bitta hujjatga yig'iladi: har o'quvchi uchun har para holati, paralar bo'yicha keldi/kelmadi, kelmaganlar ro'yxati. Oynadan: 📝 Word (.docx), 🖨 PDF, 🖼 Rasm (PNG) yuklab olish va ✈ Telegramga yuborish. Belgilanmagan para qo'shilmaydi (oynada ogohlantirish chiqadi); ochiq turgan paraning saqlanmagan belgilari ham hisobga olinadi.
 
+- **📅 Jadval kasb-emis bilan bir xil (13.11.2026).** Matematika guruhlari (01-26 … 10-26, 10-25) jadvali kasb-emis elektron jurnalidagi dars sanalari va paralariga to'liq moslandi (haftalik qatorlar + `x:` bekor kunlar + `d:` qo'shimcha darslar + `end:` tugash sanasi). Qishki ta'til: 27.12.2026 – 10.01.2027. Kasb-emis dars ro'yxati `kasb-jadval.js` faylida: dars kartasida «21/30-dars · 9 ta qoldi», «Oraliq nazorat (2)», «🏁 Oxirgi dars»; «Bugun» oynasida «Oxiriga yaqin» (≤3 dars qolgan) va «Darsi tugagan» guruhlar; «Guruhlar» va «Jadval» bo'limlarida ham tugash sanasi ko'rinadi. Yangilash: kasb-emis → Elektron jurnal → guruh → Matematika sanalarini `kasb-jadval.js` ga yozish.
+
 ### Apps Script'ni yangilash (yetakchi/izoh, o'quvchi qo'shish, o'tkazish va o'chirish uchun shart)
 Apps Script'ga `qoshimcha.gs` joylangan va `doPost` ga `qoshimcha_(a, req)` chaqiruvi kiritilgan (nusxasi: `apps-script/qoshimcha.gs`). Kod o'zgarsa: **Deploy → Manage deployments → New version**.
 
