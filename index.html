@@ -70,6 +70,22 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--b
 
 main{padding:16px 0 110px}
 /* Fanlar */
+#fmenu{position:fixed;inset:0;z-index:90;background:rgba(15,18,40,.45)}
+#fmenu.hide{display:none}
+.fmin{position:absolute;left:0;top:0;bottom:0;width:min(330px,86vw);background:var(--card);box-shadow:8px 0 40px rgba(0,0,0,.2);overflow:auto;padding:14px 12px calc(20px + env(safe-area-inset-bottom));animation:fmIn .18s ease-out}
+@keyframes fmIn{from{transform:translateX(-100%)}to{transform:none}}
+.fmh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px;padding:4px 6px 12px}
+.fmi{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:12px;font-weight:700;font-size:14px;text-align:left;color:var(--ink)}
+.fmi:hover{background:var(--pri-soft)}
+.fmi.on{background:var(--pri-soft);color:var(--pri)}
+.fmi small{margin-left:auto;color:var(--muted);font-weight:600}
+.fmg{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:14px 12px 4px}
+.fmf{display:block;width:100%;text-align:left;padding:8px 12px 8px 26px;border-radius:10px;font-size:13px;color:var(--ink)}
+.fmf:hover{background:var(--pri-soft)}
+.fmsep{height:1px;background:var(--line);margin:10px 6px}
+.fgchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.fgchip{padding:6px 10px;border-radius:999px;background:var(--pri-soft);color:var(--pri);font-weight:700;font-size:12px}
+
 .fntop{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 6px}
 .fnb{padding:9px 12px;font-size:13px}
 .fnnote{background:#fff1d6;color:#8a4b06;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
@@ -373,6 +389,7 @@ th.l{z-index:3}
 <section id="app" class="hide">
   <header class="top">
     <div class="topin">
+      <button class="iconbtn" id="menuBtn" title="Asosiy menyu" aria-label="Asosiy menyu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <div class="brand"><div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>Davomat</div>
       <span class="badge" id="pendingBadge" style="background:var(--no-soft);color:var(--no)"></span>
       <div class="sp"></div>
@@ -804,6 +821,7 @@ async function renderGroups() {
         ${o ? `<div class="bar"><i style="width:${o.davomat ?? 0}%"></i></div><div class="kv"><span>Davomat <b>${o.davomat ?? '—'}%</b></span><span>Baho <b>${o.ortacha ?? '—'}</b></span></div>` : ''}</button>`;
     }).join('') + '</div>';
     box.querySelectorAll('[data-g]').forEach(b => b.onclick = () => openAtt(b.dataset.g, curDate));
+    if (typeof fanGroupsAppend === 'function') fanGroupsAppend(box);
   };
   draw(LS.get('overview', null));
   try { const j = await api('overview'); LS.set('overview', j.guruhlar); if (curView === 'groups') draw(j.guruhlar); } catch (e) { }

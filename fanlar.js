@@ -375,3 +375,70 @@ async function fanXls(f) {
     XLSX.writeFile(wb, fnSafe(`${f.guruh}_${f.nomi}.xlsx`));
   } catch (e) { toast(e.message, 4000); }
 }
+
+/* ---------------- Asosiy menyu (☰) ---------------- */
+const FM_VIEWS = [['today', '📅', 'Bugun'], ['groups', '👥', 'Guruhlar'], ['report', '📊', 'Natijalar'], ['sched', '🕒', 'Jadval'], ['fan', '📚', 'Fanlar']];
+function fanGoView(v) { const t = document.querySelector(`.tab[data-v="${v}"]`); if (t) t.click(); }
+function fanMenuDraw() {
+  const list = fanAll().sort((a, b) => a.guruh.localeCompare(b.guruh) || a.nomi.localeCompare(b.nomi));
+  const gs = [...new Set(list.map(f => f.guruh))];
+  const n = list.length;
+  $('#fmenu').innerHTML = `<div class="fmin">
+    <div class="fmh"><span>Asosiy menyu</span><div class="sp" style="flex:1"></div><button class="iconbtn" data-fm="x" aria-label="Yopish">✕</button></div>
+    ${FM_VIEWS.map(([v, ic, t]) => `<button class="fmi${curView === v ? ' on' : ''}" data-fmv="${v}"><span>${ic}</span>${t}${v === 'fan' && n ? `<small>${n} ta</small>` : v === 'groups' && INIT ? `<small>${INIT.guruhlar.length} ta</small>` : ''}</button>`).join('')}
+    <div class="fmsep"></div>
+    <div class="fmg">Fanlar</div>
+    ${gs.length ? gs.map(g => `<div class="fmg" style="margin-top:8px;text-transform:none;letter-spacing:0;font-size:12px">${esc(g)} guruh</div>` +
+      list.filter(f => f.guruh === g).map(f => `<button class="fmf" data-fmf="${esc(f.id)}">${esc(f.nomi)} <span class="small">· ${f.sanalar.length} dars</span></button>`).join('')).join('')
+      : `<div class="small" style="padding:4px 12px">Hali fan yo'q</div>`}
+    <button class="fmi" data-fm="add"><span>➕</span>Fan qo'shish</button>
+    <button class="fmi" data-fm="xls"><span>⬆</span>Excel'dan fan yuklash</button>
+    <div class="fmsep"></div>
+    <button class="fmi" data-fm="tg"><span>✈</span>Telegram sozlamasi</button>
+    <button class="fmi" data-fm="ref"><span>⟳</span>Yangilash</button>
+    <button class="fmi" data-fm="out" style="color:var(--no)"><span>⎋</span>Chiqish</button>
+  </div>`;
+  const M = $('#fmenu');
+  M.querySelectorAll('[data-fmv]').forEach(b => b.onclick = () => { fanMenuClose(); fanGoView(b.dataset.fmv); });
+  M.querySelectorAll('[data-fmf]').forEach(b => b.onclick = () => { fanMenuClose(); fanOpen(b.dataset.fmf); });
+  M.querySelectorAll('[data-fm]').forEach(b => b.onclick = () => {
+    const a = b.dataset.fm; fanMenuClose();
+    if (a === 'add') { fanGoView('fan'); fanNewDlg(); }
+    else if (a === 'xls') { fanGoView('fan'); setTimeout(() => { const f = $('#fanFile'); if (f) f.click(); }, 50); }
+    else if (a === 'tg') $('#tgBtn').click();
+    else if (a === 'ref') $('#refreshBtn').click();
+    else if (a === 'out') $('#logoutBtn').click();
+  });
+}
+async function fanMenuOpen() {
+  let M = $('#fmenu');
+  if (!M) { M = document.createElement('div'); M.id = 'fmenu'; M.className = 'hide'; document.body.appendChild(M); M.onclick = e => { if (e.target === M) fanMenuClose(); }; }
+  M.classList.remove('hide'); fanMenuDraw();
+  if (FAN_SRV === null) { await fanSync(); if (!M.classList.contains('hide')) fanMenuDraw(); }
+}
+function fanMenuClose() { const M = $('#fmenu'); if (M) M.classList.add('hide'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fanMenuClose(); });
+if ($('#menuBtn')) $('#menuBtn').onclick = fanMenuOpen;
+
+/* ---------------- Guruhlar bo'limida fanlar ---------------- */
+function fanGroupsAppend(box) {
+  const draw = () => {
+    box.querySelectorAll('.fgsec').forEach(e => e.remove());
+    const list = fanAll().sort((a, b) => a.nomi.localeCompare(b.nomi));
+    box.querySelectorAll('[data-g]').forEach(c => {
+      const fs = list.filter(f => f.guruh === c.dataset.g); if (!fs.length) return;
+      c.querySelector('.fgline')?.remove();
+      c.insertAdjacentHTML('beforeend', `<div class="small fgline" style="margin-top:6px;font-weight:700;color:var(--pri)">📚 ${fs.length} ta fan</div>`);
+    });
+    const gs = [...new Set(list.map(f => f.guruh))].sort();
+    if (!gs.length) return;
+    box.insertAdjacentHTML('beforeend', `<div class="fgsec"><h2 class="sec">Fanlar</h2><div class="grid">` + gs.map(g => {
+      const fs = list.filter(f => f.guruh === g), gi = INIT && INIT.guruhlar.find(x => x.id === g);
+      return `<div class="gcard"><div class="id">${esc(g)}</div><div class="nm">${esc(gi ? gi.nomi : fs.length + ' ta fan')}</div>
+        <div class="fgchips">${fs.map(f => `<button class="fgchip" data-fgf="${esc(f.id)}" title="${f.sanalar.length} dars · o'rt. ${fanStat(f).ortacha ?? '—'}">${esc(f.nomi)}</button>`).join('')}</div></div>`;
+    }).join('') + '</div></div>');
+    box.querySelectorAll('[data-fgf]').forEach(b => b.onclick = e => { e.stopPropagation(); fanOpen(b.dataset.fgf); });
+  };
+  draw();
+  if (FAN_SRV === null) fanSync().then(() => { if (curView === 'groups') draw(); });
+}
