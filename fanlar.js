@@ -129,9 +129,9 @@ async function fanReadFile(file) {
     fanImpDlg();
   } catch (e) { toast('Excel o\'qilmadi: ' + e.message, 4500); }
 }
-function fanParseSheet(sheetName, rows, fileName) {
+function fanParseSheet(sheetName, rows, fileName, minD = 2) {
   // Sarlavha qatori: kamida 2 ta sana bor birinchi qator
-  const hr = rows.findIndex(r => r.filter(c => fanDLabel(c)).length >= 2);
+  const hr = rows.findIndex(r => r.filter(c => fanDLabel(c)).length >= minD);
   if (hr < 0) return null;
   const head = rows[hr];
   const dcols = head.map((c, i) => fanDLabel(c) ? i : -1).filter(i => i >= 0);
@@ -267,7 +267,7 @@ function fanNewDlg() {
 /* ---------------- Fan jurnali ---------------- */
 function fanOpen(id) {
   const f = fanAll().find(z => z.id === id); if (!f) return;
-  fanCur = JSON.parse(JSON.stringify(f)); fanDirty = false;
+  fanCur = JSON.parse(JSON.stringify(f)); fanDirty = false; fanSel = null; fanUndoS = [];
   let sec = $('#fanv');
   if (!sec) {
     sec = document.createElement('section'); sec.id = 'fanv'; sec.className = 'hide';
@@ -294,40 +294,81 @@ function fanMark() { fanDirty = true; $('#fanFoot').classList.remove('hide'); }
 function fanDraw() {
   const f = fanCur, st = fanStat(f);
   $('#fanTitle').textContent = f.guruh + ' — ' + f.nomi;
-  $('#fanSub').textContent = `${f.sanalar.length} dars · ${f.oquvchilar.length} o'quvchi · ${st.baho} baho · o'rt. ${st.ortacha ?? '—'} · NB ${st.nb}`;
+  $('#fanSub').textContent = fanSubTxt();
   $('#fanFoot').classList.toggle('hide', !fanDirty);
-  const head = f.sanalar.map((d, k) => `<th title="${esc(d)} · ✕ — ustunni o'chirish">${esc(d.slice(0, 5))}${d.length > 5 ? `<small>${esc(d.slice(6))}</small>` : ''}<button class="fnx" data-dc="${k}">✕</button></th>`).join('');
-  const body = f.oquvchilar.map((o, i) => `<tr><td class="l"><button class="fnx" data-dr="${i}" title="O'quvchini o'chirish">✕</button>${i + 1}. ${esc(o.name)}</td>` +
-    f.sanalar.map((d, k) => { const v = o.v[k] || ''; return `<td class="fncell ${v === 'nb' ? 'c-no' : v === 's' ? 'c-s' : ''}"><input data-c="${i}|${k}" value="${esc(fanShow(v))}" maxlength="2" inputmode="text" autocomplete="off"></td>`; }).join('') +
+  const head = f.sanalar.map((d, k) => `<th data-hk="${k}" title="${esc(d)} · bosing — ustunni belgilash · ✕ — o'chirish">${esc(d.slice(0, 5))}${d.length > 5 ? `<small>${esc(d.slice(6))}</small>` : ''}<button class="fnx" data-dc="${k}">✕</button></th>`).join('');
+  const body = f.oquvchilar.map((o, i) => `<tr><td class="l" data-hr="${i}" title="Bosing — qatorni belgilash"><button class="fnx" data-dr="${i}" title="O'quvchini o'chirish">✕</button>${i + 1}. ${esc(o.name)}</td>` +
+    f.sanalar.map((d, k) => { const v = o.v[k] || ''; return `<td class="fncell ${v === 'nb' ? 'c-no' : v === 's' ? 'c-s' : ''}" data-ck="${i}|${k}"><input data-c="${i}|${k}" value="${esc(fanShow(v))}" maxlength="2" inputmode="text" autocomplete="off"></td>`; }).join('') +
     `<td><b>${fanAvg(o) ?? '—'}</b></td></tr>`).join('');
+  const keep = (() => { const tw = $('#fanBody').querySelector('.fntbl'); return tw ? [tw.scrollLeft, tw.scrollTop] : null; })();
   $('#fanBody').innerHTML = `<div class="fntop">
       <label class="jadd">➕ Sana <input type="date" id="fanAddD"></label>
-      <select id="fanAddP" class="fnsel" title="Para (ixtiyoriy)"><option value="">para —</option>${[1, 2, 3, 4, 5, 6].map(p => `<option value="${p}">${p}-para</option>`).join('')}</select>
+      <select id="fanAddP" class="fnpsel" title="Para (ixtiyoriy)"><option value="">para —</option>${[1, 2, 3, 4, 5, 6].map(p => `<option value="${p}">${p}-para</option>`).join('')}</select>
       <button class="btn btn-ghost fnb" id="fanAddS">➕ O'quvchi</button>
       <button class="btn btn-ghost fnb" id="fanRen">✏️ Nomi</button>
       <button class="btn fnb" id="fanDelB" style="background:var(--no-soft);color:var(--no)">🗑 Fanni o'chirish</button></div>
-    <div class="small" style="margin:6px 0 10px">Katakka yozing: <b>2–5</b> baho, <b>NB</b> kelmadi, <b>S</b> sababli, <b>+</b> keldi. Enter / ↑ ↓ ← → — qo'shni katak.${f.manba ? ' Manba: ' + esc(f.manba) + '.' : ''}</div>
+    <div class="fntop" style="margin-top:0">
+      <button class="btn btn-ghost fnb" id="fanCpAll" title="Butun jadval (sarlavha bilan) — Excel / Google Sheets / Word'ga qo'yish uchun">📋 Jadvalni nusxalash</button>
+      <button class="btn btn-ghost fnb" id="fanPasteB" title="Clipboard'dagi Excel jadvalini belgilangan katakdan boshlab qo'yish">📥 Qo'yish</button>
+      <button class="btn btn-ghost fnb" id="fanClrB" title="Belgilangan kataklarni tozalash (Delete)">🧹 Tozalash</button>
+      <button class="btn btn-ghost fnb" id="fanFillB" title="Belgilangan joyning birinchi qatorini pastga to'ldirish (Ctrl+D)">⬇ Pastga to'ldirish</button>
+      <button class="btn btn-ghost fnb" id="fanUndoB" title="Oxirgi amalni bekor qilish (Ctrl+Z)">↶ Bekor</button>
+      <button class="btn btn-ghost fnb" id="fanUpB" title="Excel fayldagi baholarni shu fanga qo'shish (ism va sana bo'yicha)">⬆ Excel'dan yangilash</button>
+      <input type="file" id="fanUpF" accept=".xlsx,.xls,.xlsm,.ods,.csv" hidden></div>
+    <div class="small" style="margin:6px 0 10px">Excel'dagidek: katakni bosing yoki <b>surib belgilang</b> (Shift + strelka ham), sana yoki ism ustiga bosing — butun ustun/qator. Yozing: <b>2–5</b>, <b>NB</b>, <b>S</b>, <b>+</b> — bir nechta katak belgilangan bo'lsa, hammasiga yoziladi. <b>Ctrl+C / Ctrl+V</b> (Excel'dan ham, sarlavhali jadval ism va sana bo'yicha joylanadi), <b>Delete</b>, <b>Ctrl+Z</b>, <b>Ctrl+D</b>, <b>Ctrl+A</b>.${f.manba ? ' Manba: ' + esc(f.manba) + '.' : ''}</div>
     ${f.sanalar.length ? `<div class="tblwrap fntbl"><table><thead><tr><th class="l">F.I.Sh.</th>${head}<th>O'rt.</th></tr></thead><tbody>${body}</tbody></table></div>`
-      : `<div class="empty"><b>Hali dars sanasi yo'q</b>Yuqoridan «➕ Sana» orqali qo'shing</div>`}`;
+      : `<div class="empty"><b>Hali dars sanasi yo'q</b>Yuqoridan «➕ Sana» qo'shing yoki Excel'dan jadval qo'ying (Ctrl+V)</div>`}`;
   const B = $('#fanBody');
+  const tw2 = B.querySelector('.fntbl'); if (tw2 && keep) { tw2.scrollLeft = keep[0]; tw2.scrollTop = keep[1]; }
   B.querySelectorAll('input[data-c]').forEach(inp => {
-    inp.onfocus = () => inp.select();
+    inp.onfocus = () => {
+      const [i, k] = inp.dataset.c.split('|').map(Number);
+      if (!fanSel || (!fanDrag && !fanInSel(i, k))) { fanSel = { a: { i, k }, b: { i, k } }; fanPaint(); }
+      inp.select();
+    };
     inp.onchange = () => {
       const [i, k] = inp.dataset.c.split('|').map(Number), v = fanVal(inp.value);
       if (v === null) { toast('Faqat 2–5, NB, S yoki +'); inp.value = fanShow(fanCur.oquvchilar[i].v[k] || ''); return; }
-      const o = fanCur.oquvchilar[i]; while (o.v.length < fanCur.sanalar.length) o.v.push('');
-      o.v[k] = v; inp.value = fanShow(v);
-      inp.parentElement.className = 'fncell ' + (v === 'nb' ? 'c-no' : v === 's' ? 'c-s' : '');
-      inp.closest('tr').lastElementChild.innerHTML = `<b>${fanAvg(o) ?? '—'}</b>`;
-      fanMark();
+      fanSnap();
+      if (fanSelN() > 1 && fanInSel(i, k)) { const R = fanRect(); for (let r = R.i1; r <= R.i2; r++) for (let c = R.k1; c <= R.k2; c++) fanSetCell(r, c, v); fanAfter(`${fanSelN()} ta katakka «${fanShow(v) || 'bo\'sh'}» yozildi`); return; }
+      fanSetCell(i, k, v); inp.value = fanShow(v);
+      inp.parentElement.className = 'fncell ' + (v === 'nb' ? 'c-no' : v === 's' ? 'c-s' : '') + (fanInSel(i, k) ? ' fnsel' : '');
+      inp.closest('tr').lastElementChild.innerHTML = `<b>${fanAvg(fanCur.oquvchilar[i]) ?? '—'}</b>`;
+      $('#fanSub').textContent = fanSubTxt(); fanMark();
     };
     inp.onkeydown = e => {
-      const [i, k] = inp.dataset.c.split('|').map(Number);
-      const mv = { ArrowDown: [1, 0], Enter: [1, 0], ArrowUp: [-1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key]; if (!mv) return;
+      const [i, k] = inp.dataset.c.split('|').map(Number), K = e.key, ctrl = e.ctrlKey || e.metaKey, kl = K.toLowerCase();
+      if (ctrl && !e.shiftKey && (kl === 'z' || kl === 'я')) { e.preventDefault(); return fanUndoDo(); }
+      if (ctrl && (kl === 'a' || kl === 'ф')) { e.preventDefault(); fanSel = { a: { i: 0, k: 0 }, b: { i: fanCur.oquvchilar.length - 1, k: fanCur.sanalar.length - 1 } }; return fanPaint(); }
+      if (ctrl && (kl === 'd' || kl === 'в')) { e.preventDefault(); return fanFillDown(); }
+      if ((K === 'Delete' || K === 'Backspace') && fanSelN() > 1) { e.preventDefault(); return fanClear(); }
+      const mv = { ArrowDown: [1, 0], Enter: [1, 0], ArrowUp: [-1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[K]; if (!mv) return;
+      if (e.shiftKey && K !== 'Enter') {   // belgilashni kengaytirish
+        e.preventDefault(); const b = fanSel.b, ni = Math.max(0, Math.min(fanCur.oquvchilar.length - 1, b.i + mv[0])), nk = Math.max(0, Math.min(fanCur.sanalar.length - 1, b.k + mv[1]));
+        fanSel.b = { i: ni, k: nk }; fanPaint(); const c = B.querySelector(`td[data-ck="${ni}|${nk}"]`); if (c) c.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return;
+      }
       const t = B.querySelector(`input[data-c="${i + mv[0]}|${k + mv[1]}"]`); if (!t) return;
-      e.preventDefault(); inp.dispatchEvent(new Event('change')); t.focus();
+      e.preventDefault(); if (fanSelN() <= 1) inp.dispatchEvent(new Event('change')); fanSel = null; t.focus();
     };
   });
+  B.querySelectorAll('td.fncell').forEach(td => {
+    td.onmousedown = e => {
+      const [i, k] = td.dataset.ck.split('|').map(Number);
+      if (e.shiftKey && fanSel) { e.preventDefault(); fanSel.b = { i, k }; fanPaint(); return; }
+      fanSel = { a: { i, k }, b: { i, k } }; fanDrag = true; fanPaint();
+    };
+    td.onmouseenter = () => { if (!fanDrag || !fanSel) return; const [i, k] = td.dataset.ck.split('|').map(Number); if (fanSel.b.i !== i || fanSel.b.k !== k) { fanSel.b = { i, k }; fanPaint(); const a = document.activeElement; if (a && a.select) a.blur(); B.querySelector(`input[data-c="${fanSel.a.i}|${fanSel.a.k}"]`).focus({ preventScroll: true }); } };
+  });
+  B.querySelectorAll('th[data-hk]').forEach(th => th.onclick = e => { if (e.target.closest('[data-dc]')) return; const k = +th.dataset.hk; fanSel = { a: { i: 0, k }, b: { i: fanCur.oquvchilar.length - 1, k } }; fanPaint(); fanFocusA(); });
+  B.querySelectorAll('td[data-hr]').forEach(td => td.onclick = e => { if (e.target.closest('[data-dr]')) return; const i = +td.dataset.hr; fanSel = { a: { i, k: 0 }, b: { i, k: fanCur.sanalar.length - 1 } }; fanPaint(); fanFocusA(); });
+  $('#fanCpAll').onclick = fanCopyAll;
+  $('#fanPasteB').onclick = async () => { try { fanPaste(await navigator.clipboard.readText()); } catch (e) { toast("Brauzer clipboard'ni o'qishga ruxsat bermadi — katakni bosib Ctrl+V bosing", 3500); } };
+  $('#fanClrB').onclick = fanClear;
+  $('#fanFillB').onclick = fanFillDown;
+  $('#fanUndoB').onclick = fanUndoDo;
+  $('#fanUpB').onclick = () => $('#fanUpF').click();
+  $('#fanUpF').onchange = e => { const fl = e.target.files[0]; e.target.value = ''; if (fl) fanUpdateFromFile(fl); };
+  fanPaint();
   B.querySelectorAll('[data-dc]').forEach(b => b.onclick = () => {
     const k = +b.dataset.dc, d = fanCur.sanalar[k], n = fanCur.oquvchilar.filter(o => o.v[k]).length;
     if (!confirm(`${d} ustuni o'chirilsinmi?` + (n ? ` (${n} ta katak to'ldirilgan)` : ''))) return;
@@ -442,3 +483,124 @@ function fanGroupsAppend(box) {
   draw();
   if (FAN_SRV === null) fanSync().then(() => { if (curView === 'groups') draw(); });
 }
+
+
+/* ---------------- Excel'dagidek ishlash: belgilash, nusxa, qo'yish, bekor qilish ---------------- */
+let fanSel = null, fanDrag = false, fanUndoS = [];
+document.addEventListener('mouseup', () => { fanDrag = false; });
+function fanSubTxt() { const f = fanCur, st = fanStat(f); return `${f.sanalar.length} dars · ${f.oquvchilar.length} o'quvchi · ${st.baho} baho · o'rt. ${st.ortacha ?? '—'} · NB ${st.nb}`; }
+function fanRect() { if (!fanSel) return null; const { a, b } = fanSel; return { i1: Math.min(a.i, b.i), i2: Math.max(a.i, b.i), k1: Math.min(a.k, b.k), k2: Math.max(a.k, b.k) }; }
+function fanSelN() { const R = fanRect(); return R ? (R.i2 - R.i1 + 1) * (R.k2 - R.k1 + 1) : 0; }
+function fanInSel(i, k) { const R = fanRect(); return !!R && i >= R.i1 && i <= R.i2 && k >= R.k1 && k <= R.k2; }
+function fanPaint() {
+  const B = $('#fanBody'); if (!B) return; const multi = fanSelN() > 1;
+  B.querySelectorAll('td.fncell').forEach(td => { const [i, k] = td.dataset.ck.split('|').map(Number); td.classList.toggle('fnsel', multi && fanInSel(i, k)); });
+  const R = fanRect();
+  B.querySelectorAll('th[data-hk]').forEach(th => th.classList.toggle('fnhs', multi && R && +th.dataset.hk >= R.k1 && +th.dataset.hk <= R.k2));
+  const info = $('#fanSelInfo'); if (info) info.remove();
+  if (multi) $('#fanSub').insertAdjacentHTML('beforeend', `<span id="fanSelInfo"> · belgilangan: ${R.i2 - R.i1 + 1}×${R.k2 - R.k1 + 1}</span>`);
+}
+function fanFocusA() { const B = $('#fanBody'), x = fanSel && B.querySelector(`input[data-c="${fanSel.a.i}|${fanSel.a.k}"]`); if (x) { fanDrag = true; x.focus(); fanDrag = false; } }
+function fanSetCell(i, k, v) { const o = fanCur.oquvchilar[i]; if (!o) return; while (o.v.length < fanCur.sanalar.length) o.v.push(''); o.v[k] = v; }
+function fanSnap() { fanUndoS.push(JSON.stringify({ s: fanCur.sanalar, o: fanCur.oquvchilar })); if (fanUndoS.length > 50) fanUndoS.shift(); }
+function fanAfter(msg) { fanMark(); const sel = fanSel; fanDraw(); fanSel = sel; fanPaint(); fanFocusA(); if (msg) toast(msg + ' · Ctrl+Z — bekor', 3000); }
+function fanUndoDo() {
+  if (!fanUndoS.length) return toast("Bekor qilinadigan amal yo'q");
+  const x = JSON.parse(fanUndoS.pop()); fanCur.sanalar = x.s; fanCur.oquvchilar = x.o; fanSel = null; fanMark(); fanDraw(); toast('Oxirgi amal bekor qilindi ↶', 1800);
+}
+function fanClear() {
+  const R = fanRect(); if (!R) return toast('Avval kataklarni belgilang');
+  fanSnap(); let n = 0;
+  for (let i = R.i1; i <= R.i2; i++) for (let k = R.k1; k <= R.k2; k++) if (fanCur.oquvchilar[i].v[k]) { fanSetCell(i, k, ''); n++; }
+  if (!n) { fanUndoS.pop(); return toast("Belgilangan kataklar bo'sh"); }
+  fanAfter(`${n} ta katak tozalandi`);
+}
+function fanFillDown() {
+  const R = fanRect(); if (!R || R.i2 === R.i1) return toast("Pastga to'ldirish uchun bir nechta qatorni belgilang");
+  fanSnap(); let n = 0;
+  for (let k = R.k1; k <= R.k2; k++) { const v = fanCur.oquvchilar[R.i1].v[k] || ''; for (let i = R.i1 + 1; i <= R.i2; i++) if ((fanCur.oquvchilar[i].v[k] || '') !== v) { fanSetCell(i, k, v); n++; } }
+  if (!n) { fanUndoS.pop(); return toast("Hech narsa o'zgarmadi"); }
+  fanAfter(`${n} ta katak to'ldirildi`);
+}
+const fanTsv = v => /^[2-5]$/.test(v) ? v : fanShow(v || '');
+function fanCopyText(R) { const rows = []; for (let i = R.i1; i <= R.i2; i++) { const r = []; for (let k = R.k1; k <= R.k2; k++) r.push(fanTsv(fanCur.oquvchilar[i].v[k])); rows.push(r.join('\t')); } return rows.join('\n'); }
+async function fanClip(text) { try { await navigator.clipboard.writeText(text); return true; } catch (e) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok; } }
+async function fanCopyAll() {
+  const f = fanCur, txt = [['№', "O'quvchi F.I.Sh.", ...f.sanalar, "O'rtacha"].join('\t'), ...f.oquvchilar.map((o, i) => [i + 1, o.name, ...f.sanalar.map((d, k) => fanTsv(o.v[k])), fanAvg(o) ?? ''].join('\t'))].join('\n');
+  toast(await fanClip(txt) ? "Jadval nusxalandi ✓ — Excel / Sheets'da Ctrl+V" : "Nusxalab bo'lmadi", 2600);
+}
+// Boshqa jadvalni (sarlavhali: F.I.Sh. + sanalar) shu fanga qo'shish — ism va sana bo'yicha
+function fanMerge(src) {
+  const f = fanCur; let cells = 0, newD = 0, newS = 0;
+  const kOf = {}; src.sanalar.forEach(l => { let k = f.sanalar.indexOf(l); if (k < 0) { f.sanalar.push(l); f.oquvchilar.forEach(o => o.v.push('')); k = f.sanalar.length - 1; newD++; } kOf[l] = k; });
+  const added = [];
+  src.oquvchilar.forEach(so => {
+    const key = fanNK(so.name); let o = f.oquvchilar.find(x => fanNK(x.name) === key) || f.oquvchilar.find(x => lev(fanNK(x.name), key) <= 2);
+    if (!o && !so.v.some(Boolean)) return;
+    if (!o) { o = { name: so.name, v: f.sanalar.map(() => '') }; f.oquvchilar.push(o); newS++; added.push(so.name); }
+    while (o.v.length < f.sanalar.length) o.v.push('');
+    src.sanalar.forEach((l, j) => { const v = so.v[j]; if (v && o.v[kOf[l]] !== v) { o.v[kOf[l]] = v; cells++; } });
+  });
+  // sanalarni tartiblash
+  const ord = f.sanalar.map((l, i) => i).sort((a, b) => fanDKey(f.sanalar[a]).localeCompare(fanDKey(f.sanalar[b])));
+  f.sanalar = ord.map(i => f.sanalar[i]); f.oquvchilar.forEach(o => { o.v = ord.map(i => o.v[i] || ''); });
+  return { cells, newD, newS, added };
+}
+function fanMergeMsg(r) { return `${r.cells} ta katak yangilandi` + (r.newD ? ` · ${r.newD} ta yangi sana` : '') + (r.newS ? ` · ${r.newS} ta yangi o'quvchi: ${r.added.join(', ')}` : ''); }
+function fanPaste(txt) {
+  txt = String(txt || '').replace(/\r\n?/g, '\n'); if (!txt.trim()) return toast("Clipboard bo'sh");
+  const lines = txt.split('\n'); if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  const grid = lines.map(l => l.split('\t'));
+  // Sarlavhali jadval (sana ustunlari bor) — ism va sana bo'yicha joylash
+  if (grid.length > 1 && grid.some(r => r.some(c => fanDLabel(c)))) {
+    const src = fanParseSheet('paste', grid, '', 1);
+    if (src) { fanSnap(); const r = fanMerge(src); if (!r.cells && !r.newD && !r.newS) { fanUndoS.pop(); return toast("Qo'yildi — hech narsa o'zgarmadi"); } fanSel = null; return fanAfter(fanMergeMsg(r)); }
+  }
+  if (!fanCur.sanalar.length) return toast("Avval sana qo'shing yoki sarlavhali (F.I.Sh. + sanalar) jadval qo'ying", 3500);
+  const R = fanRect(); if (!R) return toast('Avval katakni belgilang, keyin Ctrl+V', 3000);
+  let rows = grid.map(r => r.map(fanVal)), bad = 0, cut = 0, n = 0;
+  if (rows.length === 1 && rows[0].length === 1 && fanSelN() > 1) { const v = rows[0][0]; rows = []; for (let i = R.i1; i <= R.i2; i++) rows.push(Array(R.k2 - R.k1 + 1).fill(v)); }
+  fanSnap();
+  rows.forEach((r, ri) => r.forEach((v, ci) => {
+    const i = R.i1 + ri, k = R.k1 + ci;
+    if (i >= fanCur.oquvchilar.length || k >= fanCur.sanalar.length) { cut++; return; }
+    if (v === null) { bad++; return; }
+    if ((fanCur.oquvchilar[i].v[k] || '') !== v) { fanSetCell(i, k, v); n++; }
+  }));
+  if (!n) fanUndoS.pop();
+  fanSel = { a: { i: R.i1, k: R.k1 }, b: { i: Math.min(R.i1 + Math.max(rows.length, 1) - 1, fanCur.oquvchilar.length - 1), k: Math.min(R.k1 + Math.max(...rows.map(r => r.length)) - 1, fanCur.sanalar.length - 1) } };
+  fanAfter((n ? `Qo'yildi ✓ — ${n} ta katak` : "Qo'yildi — hech narsa o'zgarmadi") + (bad ? ` · ${bad} ta qiymat tanilmadi` : '') + (cut ? ` · ${cut} ta jadvalga sig'madi` : ''));
+}
+async function fanUpdateFromFile(file) {
+  try {
+    await loadXLSX();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    const list = wb.SheetNames.map(n => fanParseSheet(n, XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }), file.name)).filter(Boolean);
+    if (!list.length) return toast("Faylda sana ustunlari bor jadval topilmadi", 3500);
+    const nm = fanCur.nomi.toLowerCase();
+    let src = list.find(x => x.nomi.toLowerCase() === nm) || list.find(x => x.nomi.toLowerCase().includes(nm.slice(0, 12)) || nm.includes(x.nomi.toLowerCase().slice(0, 12)));
+    if (!src) {
+      if (list.length === 1) src = list[0];
+      else { const k = prompt(`Qaysi varaq? Raqamini yozing:\n` + list.map((x, i) => `${i + 1}. ${x.varaq} — ${x.nomi}`).join('\n')); src = list[(+k || 0) - 1]; if (!src) return; }
+    }
+    fanSnap(); const r = fanMerge(src);
+    if (!r.cells && !r.newD && !r.newS) { fanUndoS.pop(); return toast(`«${src.varaq}» — yangi ma'lumot yo'q`); }
+    fanSel = null; fanAfter(`«${src.varaq}» dan: ` + fanMergeMsg(r));
+  } catch (e) { toast("Excel o'qilmadi: " + e.message, 4000); }
+}
+const fanKbOk = () => { const v = $('#fanv'); const a = document.activeElement; return v && !v.classList.contains('hide') && a && a.matches && a.matches('#fanBody input[data-c]'); };
+document.addEventListener('copy', e => {
+  if (!fanKbOk() || !fanSel) return;
+  const a = document.activeElement; if (fanSelN() <= 1 && a.selectionStart !== a.selectionEnd && a.selectionEnd - a.selectionStart < a.value.length) return;
+  e.preventDefault(); e.clipboardData.setData('text/plain', fanCopyText(fanRect())); toast(`Nusxalandi: ${fanSelN()} ta katak`, 1500);
+});
+document.addEventListener('cut', e => {
+  if (!fanKbOk() || !fanSel || fanSelN() <= 1) return;
+  e.preventDefault(); e.clipboardData.setData('text/plain', fanCopyText(fanRect())); fanClear();
+});
+document.addEventListener('paste', e => {
+  if (!fanKbOk()) return;
+  const t = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if (!/[\t\n]/.test(t.trim()) && fanSelN() <= 1) return;   // bitta qiymat bitta katakka — odatiy yozish
+  e.preventDefault(); fanPaste(t);
+});

@@ -89,7 +89,7 @@ main{padding:16px 0 110px}
 .fntop{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 6px}
 .fnb{padding:9px 12px;font-size:13px}
 .fnnote{background:#fff1d6;color:#8a4b06;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
-.fnsel{height:38px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:0 8px;font:inherit;font-size:13px}
+.fnpsel{height:38px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:0 8px;font:inherit;font-size:13px}
 #fanDlg{position:fixed;inset:0;z-index:80;background:rgba(15,18,40,.45);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto}
 #fanDlg.hide{display:none}
 .fnbox{background:var(--card);border-radius:18px;padding:16px;width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
@@ -105,6 +105,11 @@ main{padding:16px 0 110px}
 .fntbl td.fncell input:focus{outline:2px solid var(--pri);background:var(--pri-soft)}
 .fntbl th{position:sticky;top:0}
 .fntbl th small{display:block;font-weight:600;font-size:10px;opacity:.8}
+.fntbl td.fnsel{background:rgba(79,70,229,.15)}
+.fntbl td.fnsel input{background:transparent}
+.fntbl th.fnhs{color:var(--pri);background:var(--pri-soft)}
+.fntbl th[data-hk],.fntbl td[data-hr]{cursor:pointer}
+.fntbl table{user-select:none;-webkit-user-select:none}
 .fnx{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:6px;font-size:10px;color:var(--muted);opacity:.35;margin:0 2px;vertical-align:middle}
 .fnx:hover{opacity:1;background:var(--no-soft);color:var(--no)}
 h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;font-weight:700}
