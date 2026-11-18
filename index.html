@@ -69,6 +69,28 @@ header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--b
 .b-juft{background:var(--sab-soft);color:var(--sab)}
 
 main{padding:16px 0 110px}
+/* Fanlar */
+.fntop{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 6px}
+.fnb{padding:9px 12px;font-size:13px}
+.fnnote{background:#fff1d6;color:#8a4b06;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.fnsel{height:38px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:0 8px;font:inherit;font-size:13px}
+#fanDlg{position:fixed;inset:0;z-index:80;background:rgba(15,18,40,.45);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto}
+#fanDlg.hide{display:none}
+.fnbox{background:var(--card);border-radius:18px;padding:16px;width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.fnh{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:16px}
+.fnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fni{height:38px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);padding:0 10px;font:inherit;font-size:14px}
+.fnta{width:100%;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);padding:10px 12px;font:inherit;font-size:13px;resize:vertical}
+.fnimp{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.fnck input{width:20px;height:20px;margin-top:9px}
+#fanv{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding-bottom:110px}
+.fntbl td.fncell{padding:2px;border-left:1px solid var(--line)}
+.fntbl td.fncell input{width:38px;height:32px;border:0;border-radius:8px;background:transparent;text-align:center;font:inherit;font-weight:800;font-size:14px;color:inherit;text-transform:uppercase}
+.fntbl td.fncell input:focus{outline:2px solid var(--pri);background:var(--pri-soft)}
+.fntbl th{position:sticky;top:0}
+.fntbl th small{display:block;font-weight:600;font-size:10px;opacity:.8}
+.fnx{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:6px;font-size:10px;color:var(--muted);opacity:.35;margin:0 2px;vertical-align:middle}
+.fnx:hover{opacity:1;background:var(--no-soft);color:var(--no)}
 h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;font-weight:700}
 
 /* ---------- lesson cards ---------- */
@@ -232,7 +254,7 @@ h2.sec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--
 
 /* ---------- tabs ---------- */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-.tabsin{max-width:860px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tabsin{max-width:860px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
 .tab{padding:9px 0 10px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--muted)}
 .tab svg{width:22px;height:22px}
 .tab.on{color:var(--pri)}
@@ -370,6 +392,7 @@ th.l{z-index:3}
     <div id="v-groups" class="hide"></div>
     <div id="v-report" class="hide"></div>
     <div id="v-sched" class="hide"></div>
+    <div id="v-fan" class="hide"></div>
   </main>
 
   <nav class="tabs"><div class="tabsin">
@@ -377,6 +400,7 @@ th.l{z-index:3}
     <button class="tab" data-v="groups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>Guruhlar</button>
     <button class="tab" data-v="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Natijalar</button>
     <button class="tab" data-v="sched"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Jadval</button>
+    <button class="tab" data-v="fan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5M9 8h7M9 12h5"/></svg>Fanlar</button>
   </div></nav>
 </section>
 
@@ -646,8 +670,8 @@ $('#refreshBtn').onclick = () => { if (INIT) start(); };
 $$('.tab').forEach(t => t.onclick = () => {
   curView = t.dataset.v;
   $$('.tab').forEach(x => x.classList.toggle('on', x === t));
-  ['today', 'groups', 'report', 'sched'].forEach(v => $('#v-' + v).classList.toggle('hide', v !== curView));
-  $('#datebar').classList.toggle('hide', curView === 'report' || curView === 'sched');
+  ['today', 'groups', 'report', 'sched', 'fan'].forEach(v => $('#v-' + v).classList.toggle('hide', v !== curView));
+  $('#datebar').classList.toggle('hide', curView === 'report' || curView === 'sched' || curView === 'fan');
   render();
 });
 
@@ -656,6 +680,7 @@ function render() {
   if (curView === 'today') renderToday();
   else if (curView === 'groups') renderGroups();
   else if (curView === 'report') renderReport();
+  else if (curView === 'fan') renderFan();
   else renderSched();
 }
 
@@ -2773,4 +2798,5 @@ if (TOKEN && API) start(); else showLogin();
 </script>
 </body>
 </html>
+<script src="fanlar.js"></script>
 <script src="parol.js"></script>

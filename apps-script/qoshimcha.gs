@@ -4,6 +4,7 @@
  *    removeStudent — o'quvchini ro'yxatdan o'chirish (nusxasi «Arxiv» varag'iga)
  *    moveStudent   — o'quvchini boshqa guruhga o'tkazish (yangi guruhga qo'shiladi, eskisidan o'chiriladi)
  *    getMeta / saveMeta — yetakchi/sardor va izohlar
+ *    getFanlar / saveFan / delFan — qo'shimcha fanlar va ularning baho jurnali («Fanlar» varag'i, 18.11.2026)
  *  Apps Script loyihasida "qoshimcha.gs" fayli sifatida turadi (17.10.2026 da joylangan, 05.11.2026 yangilangan).
  *  Code.gs → doPost ichida, tokenTekshir_ dan keyin:
  *      const q = qoshimcha_(a, req); if (q) return javob_(q);
@@ -16,6 +17,9 @@ function qoshimcha_(a, req) {
   if (a === 'moveStudent')   return qulf_(() => oquvchiKochir0_(req));
   if (a === 'getMeta')       return izohOl_(req.group);
   if (a === 'saveMeta')      return qulf_(() => izohSaqla0_(req));
+  if (a === 'getFanlar')     return fanlarOl_();
+  if (a === 'saveFan')       return qulf_(() => fanSaqla0_(req));
+  if (a === 'delFan')        return qulf_(() => fanOchir0_(req));
   return null;
 }
 function qulf_(fn) {
@@ -160,4 +164,37 @@ function izohSur_(gid, r0) {
   }
   del.reverse().forEach(x => sh.deleteRow(x));
   return removed;
+}
+
+/* ---- Fanlar varag'i (boshqaruv faylida): ID | Guruh | Fan | Ma'lumot (JSON) | Yangilangan ----
+ *  Sayt «Fanlar» bo'limidagi har bir fan bitta qator. Ma'lumot ustunida sanalar, o'quvchilar va baholar (JSON). */
+function fanVaraq_() {
+  const ss = master_();
+  let sh = ss.getSheetByName('Fanlar');
+  if (!sh) {
+    sh = ss.insertSheet('Fanlar');
+    sh.getRange(1, 1, 1, 5).setValues([['ID', 'Guruh', 'Fan', "Ma'lumot (JSON)", 'Yangilangan']]).setFontWeight('bold');
+    sh.setFrozenRows(1); sh.setColumnWidth(1, 200); sh.setColumnWidth(3, 300); sh.setColumnWidth(4, 400);
+  }
+  return sh;
+}
+function fanlarOl_() {
+  const v = fanVaraq_().getDataRange().getValues(), out = [];
+  for (let i = 1; i < v.length; i++) if (v[i][0]) out.push({ id: String(v[i][0]), guruh: String(v[i][1]), fan: String(v[i][2]), data: String(v[i][3] || '') });
+  return { fanlar: out };
+}
+function fanSaqla0_(req) {
+  const id = String(req.id || '').trim(), data = String(req.data || '');
+  if (!id || !data) throw new Error("Fan ma'lumoti bo'sh");
+  if (data.length > 49000) throw new Error("Fan juda katta (Sheets katagiga sig'maydi)");
+  const sh = fanVaraq_(), v = sh.getDataRange().getValues();
+  const vals = [[id, String(req.guruh || ''), String(req.fan || ''), data, new Date()]];
+  for (let i = 1; i < v.length; i++) if (String(v[i][0]) === id) { sh.getRange(i + 1, 1, 1, 5).setValues(vals); return { ok: true }; }
+  sh.appendRow(vals[0]);
+  return { ok: true };
+}
+function fanOchir0_(req) {
+  const id = String(req.id || '').trim(), sh = fanVaraq_(), v = sh.getDataRange().getValues();
+  for (let i = v.length - 1; i >= 1; i--) if (String(v[i][0]) === id) sh.deleteRow(i + 1);
+  return { ok: true };
 }
